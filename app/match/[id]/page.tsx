@@ -18,28 +18,35 @@ interface MatchDetails {
   home_team: {
     id: number;
     name: string;
-    logo: string;
+    logo: string | null;
     score: number | null;
   };
   away_team: {
     id: number;
     name: string;
-    logo: string;
+    logo: string | null;
     score: number | null;
   };
   league: {
     id: number;
     name: string;
-    logo: string;
+    logo: string | null;
   };
-  venue: {
+  season: {
     id: number;
     name: string;
-    city: string;
+  } | null;
+  venue: {
+    id: number | null;
+    name: string | null;
+    city: string | null;
   };
-  statistics: any[];
-  events: any[];
-  lineups: any[];
+  h2h: {
+    homeWins: number;
+    awayWins: number;
+    draws: number;
+  } | null;
+  tournament: any;
 }
 
 export default function MatchPage() {
@@ -62,15 +69,80 @@ export default function MatchPage() {
   const fetchMatchDetails = async () => {
     try {
       console.log("Fetching match details for ID:", params.id);
-      const response = await fetch(`/api/fixtures/${params.id}`);
-      if (response.ok) {
-        const data = await response.json();
-        setMatch(data.fixture);
-      } else if (response.status === 404) {
-        setError("Match not found");
-      } else {
-        setError("Failed to load match details");
+      
+      // Fetch event details from SofaScore
+      const eventResponse = await fetch(`https://www.sofascore.com/api/v1/event/${params.id}`);
+      
+      if (!eventResponse.ok) {
+        if (eventResponse.status === 404) {
+          setError("Match not found");
+        } else {
+          setError("Failed to load match details");
+        }
+        setIsLoading(false);
+        return;
       }
+      
+      const eventData = await eventResponse.json();
+      const event = eventData.event;
+      
+      console.log("Event data:", event);
+      
+      // Fetch head-to-head data
+      let h2hData = null;
+      try {
+        const h2hResponse = await fetch(`https://www.sofascore.com/api/v1/event/${params.id}/h2h`);
+        if (h2hResponse.ok) {
+          const h2h = await h2hResponse.json();
+          h2hData = h2h.teamDuel || null;
+          console.log("H2H data:", h2hData);
+        }
+      } catch (h2hError) {
+        console.error("Failed to fetch H2H data:", h2hError);
+      }
+      
+      // Transform to our format with SofaScore image URLs
+      const homeTeamId = event.homeTeam?.id;
+      const awayTeamId = event.awayTeam?.id;
+      const tournamentId = event.tournament?.uniqueTournament?.id || event.tournament?.id;
+      
+      const matchDetails: MatchDetails = {
+        id: event.id,
+        name: `${event.homeTeam?.name || 'Home'} - ${event.awayTeam?.name || 'Away'}`,
+        starting_at: new Date(event.startTimestamp * 1000).toISOString(),
+        state: event.status?.description || event.status?.type || 'Unknown',
+        state_id: event.status?.code || 0,
+        home_team: {
+          id: event.homeTeam?.id || 0,
+          name: event.homeTeam?.name || 'Home',
+          logo: homeTeamId ? `https://api.sofascore.com/api/v1/team/${homeTeamId}/image` : null,
+          score: event.homeScore?.current ?? event.homeScore?.display ?? null,
+        },
+        away_team: {
+          id: event.awayTeam?.id || 0,
+          name: event.awayTeam?.name || 'Away',
+          logo: awayTeamId ? `https://api.sofascore.com/api/v1/team/${awayTeamId}/image` : null,
+          score: event.awayScore?.current ?? event.awayScore?.display ?? null,
+        },
+        league: {
+          id: tournamentId || 0,
+          name: event.tournament?.uniqueTournament?.name || event.tournament?.name || 'Unknown',
+          logo: tournamentId ? `https://api.sofascore.com/api/v1/unique-tournament/${tournamentId}/image` : null,
+        },
+        season: event.season ? {
+          id: event.season.id,
+          name: event.season.name || event.season.year || 'Unknown',
+        } : null,
+        venue: {
+          id: event.venue?.id || null,
+          name: event.venue?.name || null,
+          city: event.venue?.city?.name || null,
+        },
+        h2h: h2hData,
+        tournament: event.tournament,
+      };
+      
+      setMatch(matchDetails);
     } catch (err) {
       console.error("Failed to fetch match details:", err);
       setError("Failed to load match details");
@@ -142,11 +214,21 @@ export default function MatchPage() {
         <Card>
           <CardHeader>
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-3">
                 {match.league.logo && (
-                  <Image src={match.league.logo} alt={match.league.name} width={24} height={24} />
+                  <img src={match.league.logo} alt={match.league.name} width={24} height={24} className="object-contain" />
                 )}
                 <span className="text-sm text-muted-foreground">{match.league.name}</span>
+                <Link href={`/league/${match.league.id}`}>
+                  <Badge variant="outline" className="text-xs cursor-pointer hover:bg-muted">
+                    📊 Standings
+                  </Badge>
+                </Link>
+                <Link href={`/league/${match.league.id}/top-scorers`}>
+                  <Badge variant="outline" className="text-xs cursor-pointer hover:bg-muted">
+                    ⚽ Top Scorers
+                  </Badge>
+                </Link>
               </div>
               <span className="text-sm text-muted-foreground">
                 {new Date(match.starting_at).toLocaleDateString()}
@@ -157,9 +239,13 @@ export default function MatchPage() {
             <div className="grid grid-cols-3 gap-4 items-center">
               {/* Home Team */}
               <div className="text-center">
-                {match.home_team.logo && (
-                  <div className="relative w-20 h-20 mx-auto mb-2">
-                    <Image src={match.home_team.logo} alt={match.home_team.name} fill className="object-contain" />
+                {match.home_team.logo ? (
+                  <div className="w-20 h-20 mx-auto mb-2 flex items-center justify-center">
+                    <img src={match.home_team.logo} alt={match.home_team.name} className="max-w-full max-h-full object-contain" />
+                  </div>
+                ) : (
+                  <div className="w-20 h-20 mx-auto mb-2 bg-muted rounded flex items-center justify-center text-2xl font-bold">
+                    {match.home_team.name.substring(0, 2).toUpperCase()}
                   </div>
                 )}
                 <h3 className="font-bold text-lg">{match.home_team.name}</h3>
@@ -180,9 +266,13 @@ export default function MatchPage() {
 
               {/* Away Team */}
               <div className="text-center">
-                {match.away_team.logo && (
-                  <div className="relative w-20 h-20 mx-auto mb-2">
-                    <Image src={match.away_team.logo} alt={match.away_team.name} fill className="object-contain" />
+                {match.away_team.logo ? (
+                  <div className="w-20 h-20 mx-auto mb-2 flex items-center justify-center">
+                    <img src={match.away_team.logo} alt={match.away_team.name} className="max-w-full max-h-full object-contain" />
+                  </div>
+                ) : (
+                  <div className="w-20 h-20 mx-auto mb-2 bg-muted rounded flex items-center justify-center text-2xl font-bold">
+                    {match.away_team.name.substring(0, 2).toUpperCase()}
                   </div>
                 )}
                 <h3 className="font-bold text-lg">{match.away_team.name}</h3>
@@ -199,48 +289,41 @@ export default function MatchPage() {
           </CardContent>
         </Card>
 
-        {/* Match Statistics */}
-        {match.statistics && match.statistics.length > 0 && (
+        {/* Head to Head */}
+        {match.h2h && (
           <Card>
             <CardHeader>
-              <CardTitle>Match Statistics</CardTitle>
+              <CardTitle>Head to Head</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="space-y-4">
-                {match.statistics.map((stat: any, index: number) => (
-                  <div key={index} className="grid grid-cols-3 gap-4 items-center">
-                    <div className="text-right font-semibold">{stat.data?.home || "-"}</div>
-                    <div className="text-center text-sm text-muted-foreground">{stat.type?.name}</div>
-                    <div className="text-left font-semibold">{stat.data?.away || "-"}</div>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Match Events */}
-        {match.events && match.events.length > 0 && (
-          <Card>
-            <CardHeader>
-              <CardTitle>Match Events</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
-                {match.events.map((event: any, index: number) => (
-                  <div key={index} className="flex items-center gap-3 p-2 rounded-lg hover:bg-muted/50">
-                    <Badge variant="outline">{event.minute}'</Badge>
-                    <span className="text-sm">{event.type?.name}</span>
-                    <span className="text-sm font-semibold">{event.player?.display_name}</span>
-                  </div>
-                ))}
+              <div className="grid grid-cols-3 gap-4 text-center">
+                <div className="p-4 border rounded-lg">
+                  <div className="text-3xl font-bold text-green-600">{match.h2h.homeWins}</div>
+                  <div className="text-sm text-muted-foreground mt-2">{match.home_team.name} Wins</div>
+                </div>
+                <div className="p-4 border rounded-lg">
+                  <div className="text-3xl font-bold text-gray-600">{match.h2h.draws}</div>
+                  <div className="text-sm text-muted-foreground mt-2">Draws</div>
+                </div>
+                <div className="p-4 border rounded-lg">
+                  <div className="text-3xl font-bold text-blue-600">{match.h2h.awayWins}</div>
+                  <div className="text-sm text-muted-foreground mt-2">{match.away_team.name} Wins</div>
+                </div>
               </div>
             </CardContent>
           </Card>
         )}
 
         {/* Action Buttons */}
-        <div className="flex gap-2 justify-center">
+        <div className="flex gap-2 justify-center flex-wrap">
+          {match.league.id && (
+            <Link href={`/league/${match.league.id}`}>
+              <Button variant="default">
+                <Trophy className="mr-2 h-4 w-4" />
+                View League Standings
+              </Button>
+            </Link>
+          )}
           <Link href="/auth/dashboard">
             <Button variant="outline">Back to Dashboard</Button>
           </Link>

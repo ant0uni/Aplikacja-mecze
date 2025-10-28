@@ -8,6 +8,11 @@ const nextConfig: NextConfig = {
         hostname: "cdn.sportmonks.com",
         pathname: "/images/**",
       },
+      {
+        protocol: "https",
+        hostname: "api.sofascore.com",
+        pathname: "/api/v1/**",
+      },
     ],
   },
   async headers() {

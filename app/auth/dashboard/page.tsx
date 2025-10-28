@@ -75,7 +75,6 @@ export default function DashboardPage() {
 
   useEffect(() => {
     fetchUser();
-    fetchLeagues();
     fetchFixtures();
   }, []);
 
@@ -96,37 +95,90 @@ export default function DashboardPage() {
     }
   };
 
-  const fetchLeagues = async () => {
-    try {
-      const response = await fetch("/api/leagues?per_page=50");
-      if (response.ok) {
-        const data = await response.json();
-        setLeagues(data.leagues || []);
-      }
-    } catch (error) {
-      console.error("Failed to fetch leagues:", error);
-    }
-  };
-
   const fetchFixtures = async () => {
     setIsLoadingFixtures(true);
     try {
-      const params = new URLSearchParams();
-      if (dateFrom) params.append("dateFrom", dateFrom);
-      if (dateTo) params.append("dateTo", dateTo);
-      if (selectedLeagues.length > 0) params.append("leagueIds", selectedLeagues.join(","));
-      params.append("sortBy", sortBy);
-      params.append("order", order);
-      params.append("per_page", "25");
+      // Fetch directly from SofaScore API
+      const dateToFetch = dateFrom || new Date().toISOString().split('T')[0];
+      const url = `https://www.sofascore.com/api/v1/sport/football/scheduled-events/${dateToFetch}`;
       
-      const response = await fetch(`/api/fixtures?${params.toString()}`);
+      console.log("Fetching from SofaScore:", url);
+      
+      const response = await fetch(url);
       if (response.ok) {
         const data = await response.json();
-        console.log("Fixtures API response:", data);
-        console.log("First fixture:", data.fixtures?.[0]);
-        setFixtures(data.fixtures || []);
+        console.log("SofaScore API response:", data);
+        
+        // Transform SofaScore data to our format
+        let events = data.events || [];
+        
+        // Apply filters
+        if (dateTo) {
+          events = events.filter((event: any) => {
+            const eventDate = new Date(event.startTimestamp * 1000).toISOString().split('T')[0];
+            return eventDate <= dateTo;
+          });
+        }
+        
+        if (selectedLeagues.length > 0) {
+          events = events.filter((event: any) => 
+            selectedLeagues.includes(event.tournament?.uniqueTournament?.id?.toString())
+          );
+        }
+        
+        // Transform to our fixture format
+        const transformedFixtures = events.map((event: any) => ({
+          id: event.id,
+          api_id: event.id,
+          name: `${event.homeTeam?.name || 'Home'} - ${event.awayTeam?.name || 'Away'}`,
+          starting_at: new Date(event.startTimestamp * 1000).toISOString(),
+          result_info: event.slug || null,
+          state_id: event.status?.code || 0,
+          state_name: event.status?.description || event.status?.type || null,
+          home_team_id: event.homeTeam?.id || null,
+          home_team_name: event.homeTeam?.name || null,
+          home_team_logo: event.homeTeam?.id ? `https://api.sofascore.com/api/v1/team/${event.homeTeam.id}/image` : null,
+          away_team_id: event.awayTeam?.id || null,
+          away_team_name: event.awayTeam?.name || null,
+          away_team_logo: event.awayTeam?.id ? `https://api.sofascore.com/api/v1/team/${event.awayTeam.id}/image` : null,
+          home_score: event.homeScore?.current ?? event.homeScore?.display ?? null,
+          away_score: event.awayScore?.current ?? event.awayScore?.display ?? null,
+          league_id: event.tournament?.uniqueTournament?.id || event.tournament?.id || null,
+          league_name: event.tournament?.uniqueTournament?.name || event.tournament?.name || null,
+          venue_id: null,
+          venue_name: null,
+        }));
+        
+        // Apply sorting - predictable matches (not started) first
+        transformedFixtures.sort((a: any, b: any) => {
+          // First priority: Sort by match status - not started (predictable) matches come first
+          const aIsPredictable = a.state_id === 0 || a.state_name === "notstarted" || a.state_name === "Not started";
+          const bIsPredictable = b.state_id === 0 || b.state_name === "notstarted" || b.state_name === "Not started";
+          
+          if (aIsPredictable && !bIsPredictable) return -1;
+          if (!aIsPredictable && bIsPredictable) return 1;
+          
+          // Second priority: Sort by user-selected criteria (only for matches with same predictability)
+          let aValue: any = a[sortBy as keyof typeof a];
+          let bValue: any = b[sortBy as keyof typeof b];
+          
+          if (sortBy === "starting_at") {
+            aValue = new Date(aValue).getTime();
+            bValue = new Date(bValue).getTime();
+          }
+          
+          if (order === "desc") {
+            return bValue > aValue ? 1 : bValue < aValue ? -1 : 0;
+          } else {
+            return aValue > bValue ? 1 : aValue < bValue ? -1 : 0;
+          }
+        });
+        
+        console.log("Transformed fixtures:", transformedFixtures.length);
+        console.log("First fixture:", transformedFixtures[0]);
+        setFixtures(transformedFixtures);
       } else {
-        console.error("Fixtures API error:", response.status, await response.text());
+        console.error("SofaScore API error:", response.status, await response.text());
       }
     } catch (error) {
       console.error("Failed to fetch fixtures:", error);
@@ -484,16 +536,36 @@ export default function DashboardPage() {
                     <div className="space-y-3">
                       {/* Match Header */}
                       <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 flex-wrap">
                           {fixture.league_name && (
                             <Badge variant="outline" className="text-xs">
                               {fixture.league_name}
                             </Badge>
                           )}
-                          {fixture.state_name && (
-                            <Badge variant="secondary" className="text-xs">
-                              {fixture.state_name}
+                          {isMatchActive(fixture) ? (
+                            <Badge className="text-xs bg-green-500 hover:bg-green-600">
+                              ⚡ Can Predict
                             </Badge>
+                          ) : (
+                            fixture.state_name && (
+                              <Badge variant="secondary" className="text-xs">
+                                {fixture.state_name}
+                              </Badge>
+                            )
+                          )}
+                          {fixture.league_id && (
+                            <>
+                              <Link href={`/league/${fixture.league_id}`}>
+                                <Badge variant="outline" className="text-xs cursor-pointer hover:bg-muted">
+                                  📊 Standings
+                                </Badge>
+                              </Link>
+                              <Link href={`/league/${fixture.league_id}/top-scorers`}>
+                                <Badge variant="outline" className="text-xs cursor-pointer hover:bg-muted">
+                                  ⚽ Top Scorers
+                                </Badge>
+                              </Link>
+                            </>
                           )}
                         </div>
                         <div className="flex items-center gap-1 text-xs text-muted-foreground">
@@ -508,17 +580,20 @@ export default function DashboardPage() {
                           {/* Home Team */}
                           <div className="col-span-3 flex items-center gap-2">
                             {fixture.home_team_logo ? (
-                              <div className="relative w-10 h-10 flex-shrink-0">
-                                <Image
+                              <div className="w-10 h-10 flex-shrink-0 flex items-center justify-center">
+                                <img
                                   src={fixture.home_team_logo}
                                   alt={fixture.home_team_name || "Home"}
-                                  fill
-                                  className="object-contain"
+                                  className="max-w-full max-h-full object-contain"
+                                  onError={(e) => {
+                                    const target = e.target as HTMLImageElement;
+                                    target.style.display = 'none';
+                                  }}
                                 />
                               </div>
                             ) : (
-                              <div className="w-10 h-10 flex-shrink-0 bg-muted rounded flex items-center justify-center text-xs">
-                                H
+                              <div className="w-10 h-10 flex-shrink-0 bg-muted rounded flex items-center justify-center text-xs font-bold">
+                                {fixture.home_team_name?.substring(0, 2).toUpperCase() || 'H'}
                               </div>
                             )}
                             <span className="font-semibold text-sm truncate">
@@ -548,17 +623,20 @@ export default function DashboardPage() {
                               {fixture.away_team_name || "Away"}
                             </span>
                             {fixture.away_team_logo ? (
-                              <div className="relative w-10 h-10 flex-shrink-0">
-                                <Image
+                              <div className="w-10 h-10 flex-shrink-0 flex items-center justify-center">
+                                <img
                                   src={fixture.away_team_logo}
                                   alt={fixture.away_team_name || "Away"}
-                                  fill
-                                  className="object-contain"
+                                  className="max-w-full max-h-full object-contain"
+                                  onError={(e) => {
+                                    const target = e.target as HTMLImageElement;
+                                    target.style.display = 'none';
+                                  }}
                                 />
                               </div>
                             ) : (
-                              <div className="w-10 h-10 flex-shrink-0 bg-muted rounded flex items-center justify-center text-xs">
-                                A
+                              <div className="w-10 h-10 flex-shrink-0 bg-muted rounded flex items-center justify-center text-xs font-bold">
+                                {fixture.away_team_name?.substring(0, 2).toUpperCase() || 'A'}
                               </div>
                             )}
                           </div>

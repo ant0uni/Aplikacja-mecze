@@ -3,41 +3,37 @@ import { db } from "@/db";
 import { fixtures } from "@/db/schema";
 import { eq } from "drizzle-orm";
 
-const SPORTMONKS_API_BASE = "https://api.sportmonks.com/v3/football";
-const API_TOKEN = process.env.SPORTMONKS_API_TOKEN;
+const SOFASCORE_API_BASE = "https://www.sofascore.com/api/v1";
 
 export async function GET(request: NextRequest) {
   try {
-    if (!API_TOKEN) {
-      return NextResponse.json(
-        { error: "API token not configured" },
-        { status: 500 }
-      );
-    }
-
     const { searchParams } = new URL(request.url);
     
-    // For FREE PLAN: Use livescores endpoint (shows fixtures from 15 min before start to 15 min after finish)
-    // Start with NO includes to avoid errors - base data should have most info we need
-    const url = `${SPORTMONKS_API_BASE}/livescores?api_token=${API_TOKEN}`;
+    // Get date parameter (defaults to today)
+    const dateParam = searchParams.get("dateFrom") || new Date().toISOString().split('T')[0];
     
-    console.log("Fetching fixtures from livescores endpoint:", url.replace(API_TOKEN, "***"));
+    // Build SofaScore API URL - uses date format: YYYY-MM-DD
+    const url = `${SOFASCORE_API_BASE}/sport/football/scheduled-events/${dateParam}`;
+    
+    console.log("Fetching fixtures from SofaScore:", url);
 
     const response = await fetch(url, {
-      next: { revalidate: 60 }, // Cache for 1 minute (livescores change frequently)
+      next: { revalidate: 60 }, // Cache for 1 minute
+      headers: {
+        'Accept': 'application/json',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+      }
     });
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error("SportMonks API error:", response.status, errorText);
-      console.error("Request URL:", url.replace(API_TOKEN, "***"));
+      console.error("SofaScore API error:", response.status, errorText);
       
       return NextResponse.json(
         { 
-          error: "Failed to fetch fixtures from SportMonks API", 
+          error: "Failed to fetch fixtures from SofaScore API", 
           details: errorText, 
           status: response.status,
-          suggestion: "Check your API token and subscription plan at sportmonks.com"
         },
         { status: 500 }
       );
@@ -45,10 +41,9 @@ export async function GET(request: NextRequest) {
 
     const data = await response.json();
 
-    console.log("SportMonks response:", {
-      fixturesCount: data.data?.length || 0,
-      hasData: !!data.data,
-      subscription: data.subscription,
+    console.log("SofaScore response:", {
+      eventsCount: data.events?.length || 0,
+      hasData: !!data.events,
     });
 
     // Get client-side filters
@@ -59,64 +54,60 @@ export async function GET(request: NextRequest) {
     const order = searchParams.get("order") || "asc";
 
     // Cache fixtures in database
-    let fixturesData = data.data || [];
+    let fixturesData = data.events || [];
     
-    // Apply date range filter if specified (client-side since livescores doesn't support date params)
-    if (dateFrom || dateTo) {
+    // Apply date range filter if specified
+    if (dateTo) {
       fixturesData = fixturesData.filter((f: any) => {
-        const fixtureDate = new Date(f.starting_at);
-        if (dateFrom && fixtureDate < new Date(dateFrom)) return false;
-        if (dateTo && fixtureDate > new Date(dateTo + 'T23:59:59')) return false;
-        return true;
+        const fixtureDate = new Date(f.startTimestamp * 1000).toISOString().split('T')[0];
+        return fixtureDate <= dateTo;
       });
     }
     
-    // Apply league filter if specified
+    // Apply league filter if specified (using tournament.uniqueTournament.id from SofaScore)
     if (leagueIds.length > 0) {
-      fixturesData = fixturesData.filter((f: any) => leagueIds.includes(f.league_id));
+      fixturesData = fixturesData.filter((f: any) => 
+        leagueIds.includes(f.tournament?.uniqueTournament?.id)
+      );
     }
     
     const cachedFixtures = [];
 
     for (const fixture of fixturesData) {
-      // Base fixture data without includes
-      // Teams and scores are in the base response
-      const participants = fixture.participants || [];
-      const homeTeam = participants.find((p: any) => p.meta?.location === "home");
-      const awayTeam = participants.find((p: any) => p.meta?.location === "away");
+      // Extract data from SofaScore response structure
+      const homeTeam = fixture.homeTeam;
+      const awayTeam = fixture.awayTeam;
+      const homeScore = fixture.homeScore;
+      const awayScore = fixture.awayScore;
+      const tournament = fixture.tournament;
       
-      // Scores are in the base fixture data
-      const scores = fixture.scores || [];
-      const currentScore = scores.find((s: any) => s.description === "CURRENT") || scores[0];
+      // Prepare fixture data for DB (declare outside try for error handling)
+      const fixtureData = {
+        apiId: fixture.id,
+        sportId: 1, // Football
+        leagueId: tournament?.uniqueTournament?.id || tournament?.id || null,
+        leagueName: tournament?.uniqueTournament?.name || tournament?.name || null,
+        seasonId: fixture.season?.id || null,
+        name: `${homeTeam?.name || 'Home'} - ${awayTeam?.name || 'Away'}`,
+        homeTeamId: homeTeam?.id || null,
+        homeTeamName: homeTeam?.name || null,
+        homeTeamLogo: homeTeam?.teamColors ? `https://img.sofascore.com/api/v1/team/${homeTeam.id}/image` : null,
+        awayTeamId: awayTeam?.id || null,
+        awayTeamName: awayTeam?.name || null,
+        awayTeamLogo: awayTeam?.teamColors ? `https://img.sofascore.com/api/v1/team/${awayTeam.id}/image` : null,
+        startingAt: new Date(fixture.startTimestamp * 1000),
+        resultInfo: fixture.slug || null,
+        stateId: fixture.status?.code || 0,
+        stateName: fixture.status?.description || fixture.status?.type || null,
+        homeScore: homeScore?.current ?? homeScore?.display ?? null,
+        awayScore: awayScore?.current ?? awayScore?.display ?? null,
+        venueId: null,
+        venueName: null,
+        hasOdds: false,
+        updatedAt: new Date(),
+      };
       
       try {
-        // Prepare fixture data for DB
-        const fixtureData = {
-          apiId: fixture.id,
-          sportId: fixture.sport_id,
-          leagueId: fixture.league_id,
-          leagueName: fixture.league?.name || null,  // May be null without include
-          seasonId: fixture.season_id,
-          name: fixture.name,
-          homeTeamId: homeTeam?.id || null,
-          homeTeamName: homeTeam?.name || null,
-          homeTeamLogo: homeTeam?.image_path || null,
-          awayTeamId: awayTeam?.id || null,
-          awayTeamName: awayTeam?.name || null,
-          awayTeamLogo: awayTeam?.image_path || null,
-          startingAt: new Date(fixture.starting_at),
-          resultInfo: fixture.result_info || null,
-          stateId: fixture.state_id,
-          stateName: fixture.state?.name || null,  // May be null without include
-          homeScore: currentScore?.score?.goals?.home || null,
-          awayScore: currentScore?.score?.goals?.away || null,
-          venueId: fixture.venue_id || null,
-          venueName: fixture.venue?.name || null,  // May be null without include
-          hasOdds: fixture.has_odds || false,
-          updatedAt: new Date(),
-        };
-
-        // Check if fixture exists
         const existing = await db
           .select()
           .from(fixtures)
@@ -133,23 +124,23 @@ export async function GET(request: NextRequest) {
           cachedFixtures.push({ 
             id: existing[0].id,
             api_id: fixture.id,
-            name: fixture.name,
-            starting_at: fixture.starting_at,
-            result_info: fixture.result_info || null,
-            state_id: fixture.state_id,
-            state_name: fixture.state?.name || null,
+            name: fixtureData.name,
+            starting_at: new Date(fixture.startTimestamp * 1000).toISOString(),
+            result_info: fixtureData.resultInfo,
+            state_id: fixtureData.stateId,
+            state_name: fixtureData.stateName,
             home_team_id: homeTeam?.id || null,
             home_team_name: homeTeam?.name || null,
-            home_team_logo: homeTeam?.image_path || null,
+            home_team_logo: fixtureData.homeTeamLogo,
             away_team_id: awayTeam?.id || null,
             away_team_name: awayTeam?.name || null,
-            away_team_logo: awayTeam?.image_path || null,
-            home_score: currentScore?.score?.goals?.home || null,
-            away_score: currentScore?.score?.goals?.away || null,
-            league_id: fixture.league_id,
-            league_name: fixture.league?.name || null,
-            venue_id: fixture.venue_id || null,
-            venue_name: fixture.venue?.name || null,
+            away_team_logo: fixtureData.awayTeamLogo,
+            home_score: fixtureData.homeScore,
+            away_score: fixtureData.awayScore,
+            league_id: fixtureData.leagueId,
+            league_name: fixtureData.leagueName,
+            venue_id: null,
+            venue_name: null,
           });
         } else {
           // Insert new fixture
@@ -161,48 +152,48 @@ export async function GET(request: NextRequest) {
           cachedFixtures.push({
             id: newFixture.id,
             api_id: fixture.id,
-            name: fixture.name,
-            starting_at: fixture.starting_at,
-            result_info: fixture.result_info || null,
-            state_id: fixture.state_id,
-            state_name: fixture.state?.name || null,
+            name: fixtureData.name,
+            starting_at: new Date(fixture.startTimestamp * 1000).toISOString(),
+            result_info: fixtureData.resultInfo,
+            state_id: fixtureData.stateId,
+            state_name: fixtureData.stateName,
             home_team_id: homeTeam?.id || null,
             home_team_name: homeTeam?.name || null,
-            home_team_logo: homeTeam?.image_path || null,
+            home_team_logo: fixtureData.homeTeamLogo,
             away_team_id: awayTeam?.id || null,
             away_team_name: awayTeam?.name || null,
-            away_team_logo: awayTeam?.image_path || null,
-            home_score: currentScore?.score?.goals?.home || null,
-            away_score: currentScore?.score?.goals?.away || null,
-            league_id: fixture.league_id,
-            league_name: fixture.league?.name || null,
-            venue_id: fixture.venue_id || null,
-            venue_name: fixture.venue?.name || null,
+            away_team_logo: fixtureData.awayTeamLogo,
+            home_score: fixtureData.homeScore,
+            away_score: fixtureData.awayScore,
+            league_id: fixtureData.leagueId,
+            league_name: fixtureData.leagueName,
+            venue_id: null,
+            venue_name: null,
           });
         }
       } catch (dbError) {
         console.error("Error caching fixture:", fixture.id, dbError);
-        // If DB fails, still return data from API (not fake data)
+        // If DB fails, still return data from API
         cachedFixtures.push({
           id: fixture.id,
           api_id: fixture.id,
-          name: fixture.name,
-          starting_at: fixture.starting_at,
-          result_info: fixture.result_info || null,
-          state_id: fixture.state_id,
-          state_name: fixture.state?.name || null,
+          name: fixtureData.name,
+          starting_at: new Date(fixture.startTimestamp * 1000).toISOString(),
+          result_info: fixtureData.resultInfo,
+          state_id: fixtureData.stateId,
+          state_name: fixtureData.stateName,
           home_team_id: homeTeam?.id || null,
           home_team_name: homeTeam?.name || null,
-          home_team_logo: homeTeam?.image_path || null,
+          home_team_logo: fixtureData.homeTeamLogo,
           away_team_id: awayTeam?.id || null,
           away_team_name: awayTeam?.name || null,
-          away_team_logo: awayTeam?.image_path || null,
-          home_score: currentScore?.score?.goals?.home || null,
-          away_score: currentScore?.score?.goals?.away || null,
-          league_id: fixture.league_id,
-          league_name: fixture.league?.name || null,
-          venue_id: fixture.venue_id || null,
-          venue_name: fixture.venue?.name || null,
+          away_team_logo: fixtureData.awayTeamLogo,
+          home_score: fixtureData.homeScore,
+          away_score: fixtureData.awayScore,
+          league_id: fixtureData.leagueId,
+          league_name: fixtureData.leagueName,
+          venue_id: null,
+          venue_name: null,
         });
       }
     }
@@ -238,9 +229,8 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(
       {
         fixtures: cachedFixtures,
-        pagination: data.pagination || null,
-        subscription: data.subscription || null,
-        rate_limit: data.rate_limit || null,
+        count: cachedFixtures.length,
+        date: dateParam,
       },
       { status: 200 }
     );
