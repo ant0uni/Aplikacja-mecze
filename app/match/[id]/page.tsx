@@ -46,6 +46,20 @@ interface MatchDetails {
     awayWins: number;
     draws: number;
   } | null;
+  votes: {
+    vote1: number;  // Home team votes
+    vote2: number;  // Away team votes
+    voteX: number;  // Draw votes
+  } | null;
+  bothTeamsToScore: {
+    voteYes: number;
+    voteNo: number;
+  } | null;
+  firstToScore: {
+    voteHome: number;
+    voteAway: number;
+    voteNoGoal: number;
+  } | null;
   tournament: any;
 }
 
@@ -101,6 +115,23 @@ export default function MatchPage() {
         console.error("Failed to fetch H2H data:", h2hError);
       }
       
+      // Fetch voting data
+      let votesData = null;
+      let bothTeamsToScoreData = null;
+      let firstToScoreData = null;
+      try {
+        const votesResponse = await fetch(`https://www.sofascore.com/api/v1/event/${params.id}/votes`);
+        if (votesResponse.ok) {
+          const votes = await votesResponse.json();
+          console.log("Votes data:", votes);
+          votesData = votes.vote || null;
+          bothTeamsToScoreData = votes.bothTeamsToScoreVote || null;
+          firstToScoreData = votes.firstTeamToScoreVote || null;
+        }
+      } catch (votesError) {
+        console.error("Failed to fetch votes data:", votesError);
+      }
+      
       // Transform to our format with SofaScore image URLs
       const homeTeamId = event.homeTeam?.id;
       const awayTeamId = event.awayTeam?.id;
@@ -139,6 +170,9 @@ export default function MatchPage() {
           city: event.venue?.city?.name || null,
         },
         h2h: h2hData,
+        votes: votesData,
+        bothTeamsToScore: bothTeamsToScoreData,
+        firstToScore: firstToScoreData,
         tournament: event.tournament,
       };
       
@@ -309,6 +343,143 @@ export default function MatchPage() {
                   <div className="text-3xl font-bold text-blue-600">{match.h2h.awayWins}</div>
                   <div className="text-sm text-muted-foreground mt-2">{match.away_team.name} Wins</div>
                 </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Fan Predictions */}
+        {match.votes && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Fan Predictions</CardTitle>
+              <p className="text-sm text-muted-foreground">What fans think will happen</p>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {/* Match Result Voting */}
+              <div>
+                <h3 className="font-semibold mb-3">Match Result</h3>
+                <div className="grid grid-cols-3 gap-4">
+                  <div className="text-center p-4 border rounded-lg hover:bg-muted/50 transition-colors">
+                    <div className="text-2xl font-bold text-green-600">
+                      {((match.votes.vote1 / (match.votes.vote1 + match.votes.vote2 + match.votes.voteX)) * 100).toFixed(1)}%
+                    </div>
+                    <div className="text-sm text-muted-foreground mt-1">{match.home_team.name} Win</div>
+                    <div className="text-xs text-muted-foreground mt-1">{match.votes.vote1.toLocaleString()} votes</div>
+                  </div>
+                  <div className="text-center p-4 border rounded-lg hover:bg-muted/50 transition-colors">
+                    <div className="text-2xl font-bold text-gray-600">
+                      {((match.votes.voteX / (match.votes.vote1 + match.votes.vote2 + match.votes.voteX)) * 100).toFixed(1)}%
+                    </div>
+                    <div className="text-sm text-muted-foreground mt-1">Draw</div>
+                    <div className="text-xs text-muted-foreground mt-1">{match.votes.voteX.toLocaleString()} votes</div>
+                  </div>
+                  <div className="text-center p-4 border rounded-lg hover:bg-muted/50 transition-colors">
+                    <div className="text-2xl font-bold text-red-600">
+                      {((match.votes.vote2 / (match.votes.vote1 + match.votes.vote2 + match.votes.voteX)) * 100).toFixed(1)}%
+                    </div>
+                    <div className="text-sm text-muted-foreground mt-1">{match.away_team.name} Win</div>
+                    <div className="text-xs text-muted-foreground mt-1">{match.votes.vote2.toLocaleString()} votes</div>
+                  </div>
+                </div>
+                {/* Visual Bar */}
+                <div className="mt-4 h-3 rounded-full overflow-hidden flex">
+                  <div 
+                    className="bg-green-600" 
+                    style={{ width: `${(match.votes.vote1 / (match.votes.vote1 + match.votes.vote2 + match.votes.voteX)) * 100}%` }}
+                  ></div>
+                  <div 
+                    className="bg-gray-400" 
+                    style={{ width: `${(match.votes.voteX / (match.votes.vote1 + match.votes.vote2 + match.votes.voteX)) * 100}%` }}
+                  ></div>
+                  <div 
+                    className="bg-red-600" 
+                    style={{ width: `${(match.votes.vote2 / (match.votes.vote1 + match.votes.vote2 + match.votes.voteX)) * 100}%` }}
+                  ></div>
+                </div>
+              </div>
+
+              {/* Both Teams to Score */}
+              {match.bothTeamsToScore && (
+                <div>
+                  <h3 className="font-semibold mb-3">Both Teams to Score?</h3>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="text-center p-4 border rounded-lg hover:bg-muted/50 transition-colors">
+                      <div className="text-2xl font-bold text-green-600">
+                        {((match.bothTeamsToScore.voteYes / (match.bothTeamsToScore.voteYes + match.bothTeamsToScore.voteNo)) * 100).toFixed(1)}%
+                      </div>
+                      <div className="text-sm text-muted-foreground mt-1">Yes</div>
+                      <div className="text-xs text-muted-foreground mt-1">{match.bothTeamsToScore.voteYes.toLocaleString()} votes</div>
+                    </div>
+                    <div className="text-center p-4 border rounded-lg hover:bg-muted/50 transition-colors">
+                      <div className="text-2xl font-bold text-red-600">
+                        {((match.bothTeamsToScore.voteNo / (match.bothTeamsToScore.voteYes + match.bothTeamsToScore.voteNo)) * 100).toFixed(1)}%
+                      </div>
+                      <div className="text-sm text-muted-foreground mt-1">No</div>
+                      <div className="text-xs text-muted-foreground mt-1">{match.bothTeamsToScore.voteNo.toLocaleString()} votes</div>
+                    </div>
+                  </div>
+                  {/* Visual Bar */}
+                  <div className="mt-4 h-3 rounded-full overflow-hidden flex">
+                    <div 
+                      className="bg-green-600" 
+                      style={{ width: `${(match.bothTeamsToScore.voteYes / (match.bothTeamsToScore.voteYes + match.bothTeamsToScore.voteNo)) * 100}%` }}
+                    ></div>
+                    <div 
+                      className="bg-red-600" 
+                      style={{ width: `${(match.bothTeamsToScore.voteNo / (match.bothTeamsToScore.voteYes + match.bothTeamsToScore.voteNo)) * 100}%` }}
+                    ></div>
+                  </div>
+                </div>
+              )}
+
+              {/* First Team to Score */}
+              {match.firstToScore && (
+                <div>
+                  <h3 className="font-semibold mb-3">First Team to Score</h3>
+                  <div className="grid grid-cols-3 gap-4">
+                    <div className="text-center p-4 border rounded-lg hover:bg-muted/50 transition-colors">
+                      <div className="text-2xl font-bold text-green-600">
+                        {((match.firstToScore.voteHome / (match.firstToScore.voteHome + match.firstToScore.voteAway + match.firstToScore.voteNoGoal)) * 100).toFixed(1)}%
+                      </div>
+                      <div className="text-sm text-muted-foreground mt-1">{match.home_team.name}</div>
+                      <div className="text-xs text-muted-foreground mt-1">{match.firstToScore.voteHome.toLocaleString()} votes</div>
+                    </div>
+                    <div className="text-center p-4 border rounded-lg hover:bg-muted/50 transition-colors">
+                      <div className="text-2xl font-bold text-red-600">
+                        {((match.firstToScore.voteAway / (match.firstToScore.voteHome + match.firstToScore.voteAway + match.firstToScore.voteNoGoal)) * 100).toFixed(1)}%
+                      </div>
+                      <div className="text-sm text-muted-foreground mt-1">{match.away_team.name}</div>
+                      <div className="text-xs text-muted-foreground mt-1">{match.firstToScore.voteAway.toLocaleString()} votes</div>
+                    </div>
+                    <div className="text-center p-4 border rounded-lg hover:bg-muted/50 transition-colors">
+                      <div className="text-2xl font-bold text-gray-600">
+                        {((match.firstToScore.voteNoGoal / (match.firstToScore.voteHome + match.firstToScore.voteAway + match.firstToScore.voteNoGoal)) * 100).toFixed(1)}%
+                      </div>
+                      <div className="text-sm text-muted-foreground mt-1">No Goal</div>
+                      <div className="text-xs text-muted-foreground mt-1">{match.firstToScore.voteNoGoal.toLocaleString()} votes</div>
+                    </div>
+                  </div>
+                  {/* Visual Bar */}
+                  <div className="mt-4 h-3 rounded-full overflow-hidden flex">
+                    <div 
+                      className="bg-green-600" 
+                      style={{ width: `${(match.firstToScore.voteHome / (match.firstToScore.voteHome + match.firstToScore.voteAway + match.firstToScore.voteNoGoal)) * 100}%` }}
+                    ></div>
+                    <div 
+                      className="bg-red-600" 
+                      style={{ width: `${(match.firstToScore.voteAway / (match.firstToScore.voteHome + match.firstToScore.voteAway + match.firstToScore.voteNoGoal)) * 100}%` }}
+                    ></div>
+                    <div 
+                      className="bg-gray-400" 
+                      style={{ width: `${(match.firstToScore.voteNoGoal / (match.firstToScore.voteHome + match.firstToScore.voteAway + match.firstToScore.voteNoGoal)) * 100}%` }}
+                    ></div>
+                  </div>
+                </div>
+              )}
+
+              <div className="text-xs text-muted-foreground text-center pt-4 border-t">
+                Total votes: {(match.votes.vote1 + match.votes.vote2 + match.votes.voteX).toLocaleString()}
               </div>
             </CardContent>
           </Card>

@@ -44,6 +44,9 @@ interface Fixture {
   away_score?: number | null;
   league_id?: number;
   league_name?: string;
+  country_name?: string;
+  has_standings?: boolean;
+  has_top_scorers?: boolean;
   venue_id?: number;
   venue_name?: string;
 }
@@ -60,11 +63,18 @@ export default function DashboardPage() {
   
   // Filter states
   const [selectedLeagues, setSelectedLeagues] = useState<string[]>([]);
+  const [selectedCountries, setSelectedCountries] = useState<string[]>([]);
   const [dateFrom, setDateFrom] = useState(new Date().toISOString().split('T')[0]);
   const [dateTo, setDateTo] = useState("");
   const [sortBy, setSortBy] = useState("starting_at");
   const [order, setOrder] = useState("asc");
   const [showFilters, setShowFilters] = useState(false);
+  const [showPredictableOnly, setShowPredictableOnly] = useState(false);
+  const [searchTeam, setSearchTeam] = useState("");
+  
+  // Unique countries and leagues from current fixtures
+  const [availableCountries, setAvailableCountries] = useState<{name: string, count: number}[]>([]);
+  const [availableLeagues, setAvailableLeagues] = useState<{id: string, name: string, country: string, count: number}[]>([]);
 
   // Prediction modal states
   const [selectedFixture, setSelectedFixture] = useState<Fixture | null>(null);
@@ -112,12 +122,57 @@ export default function DashboardPage() {
         // Transform SofaScore data to our format
         let events = data.events || [];
         
+        // Extract unique countries and leagues for filter dropdowns
+        const countryMap = new Map<string, number>();
+        const leagueMap = new Map<string, {id: string, name: string, country: string, count: number}>();
+        
+        events.forEach((event: any) => {
+          const country = event.tournament?.category?.name || 'Unknown';
+          const leagueId = event.tournament?.uniqueTournament?.id?.toString() || event.tournament?.id?.toString();
+          const leagueName = event.tournament?.uniqueTournament?.name || event.tournament?.name || 'Unknown';
+          
+          // Count countries
+          countryMap.set(country, (countryMap.get(country) || 0) + 1);
+          
+          // Count leagues
+          if (leagueId) {
+            if (leagueMap.has(leagueId)) {
+              const existing = leagueMap.get(leagueId)!;
+              existing.count += 1;
+            } else {
+              leagueMap.set(leagueId, {
+                id: leagueId,
+                name: leagueName,
+                country: country,
+                count: 1
+              });
+            }
+          }
+        });
+        
+        // Convert to sorted arrays
+        const countriesArray = Array.from(countryMap.entries())
+          .map(([name, count]) => ({ name, count }))
+          .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
+        
+        const leaguesArray = Array.from(leagueMap.values())
+          .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
+        
+        setAvailableCountries(countriesArray);
+        setAvailableLeagues(leaguesArray);
+        
         // Apply filters
         if (dateTo) {
           events = events.filter((event: any) => {
             const eventDate = new Date(event.startTimestamp * 1000).toISOString().split('T')[0];
             return eventDate <= dateTo;
           });
+        }
+        
+        if (selectedCountries.length > 0) {
+          events = events.filter((event: any) => 
+            selectedCountries.includes(event.tournament?.category?.name)
+          );
         }
         
         if (selectedLeagues.length > 0) {
@@ -127,7 +182,7 @@ export default function DashboardPage() {
         }
         
         // Transform to our fixture format
-        const transformedFixtures = events.map((event: any) => ({
+        let transformedFixtures = events.map((event: any) => ({
           id: event.id,
           api_id: event.id,
           name: `${event.homeTeam?.name || 'Home'} - ${event.awayTeam?.name || 'Away'}`,
@@ -145,9 +200,28 @@ export default function DashboardPage() {
           away_score: event.awayScore?.current ?? event.awayScore?.display ?? null,
           league_id: event.tournament?.uniqueTournament?.id || event.tournament?.id || null,
           league_name: event.tournament?.uniqueTournament?.name || event.tournament?.name || null,
+          country_name: event.tournament?.category?.name || null,
+          has_standings: event.tournament?.uniqueTournament?.hasStandingsGroups || event.tournament?.uniqueTournament?.hasPerformanceGraphFeature || false,
+          has_top_scorers: event.tournament?.uniqueTournament?.hasEventPlayerStatistics || false,
           venue_id: null,
           venue_name: null,
         }));
+        
+        // Filter by predictable only
+        if (showPredictableOnly) {
+          transformedFixtures = transformedFixtures.filter((fixture: any) => {
+            return fixture.state_id === 0 || fixture.state_name === "notstarted" || fixture.state_name === "Not started";
+          });
+        }
+        
+        // Filter by team search
+        if (searchTeam) {
+          const searchLower = searchTeam.toLowerCase();
+          transformedFixtures = transformedFixtures.filter((fixture: any) => 
+            fixture.home_team_name?.toLowerCase().includes(searchLower) ||
+            fixture.away_team_name?.toLowerCase().includes(searchLower)
+          );
+        }
         
         // Apply sorting - predictable matches (not started) first
         transformedFixtures.sort((a: any, b: any) => {
@@ -382,9 +456,35 @@ export default function DashboardPage() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
+            {/* Team Search - Always Visible */}
+            <div className="space-y-2">
+              <Label htmlFor="searchTeam">🔍 Search Teams</Label>
+              <Input
+                id="searchTeam"
+                type="text"
+                placeholder="Search by team name..."
+                value={searchTeam}
+                onChange={(e) => setSearchTeam(e.target.value)}
+              />
+            </div>
+
+            {/* Predictable Only Toggle */}
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                id="predictableOnly"
+                checked={showPredictableOnly}
+                onChange={(e) => setShowPredictableOnly(e.target.checked)}
+                className="w-4 h-4 cursor-pointer"
+              />
+              <Label htmlFor="predictableOnly" className="cursor-pointer">
+                ⚡ Show only predictable matches
+              </Label>
+            </div>
+
             {showFilters && (
-              <div className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-4 pt-4 border-t">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                   {/* Date From */}
                   <div className="space-y-2">
                     <Label htmlFor="dateFrom">
@@ -403,7 +503,7 @@ export default function DashboardPage() {
                   <div className="space-y-2">
                     <Label htmlFor="dateTo">
                       <Calendar className="inline h-4 w-4 mr-2" />
-                      To Date
+                      To Date (Optional)
                     </Label>
                     <Input
                       id="dateTo"
@@ -411,46 +511,6 @@ export default function DashboardPage() {
                       value={dateTo}
                       onChange={(e) => setDateTo(e.target.value)}
                     />
-                  </div>
-
-                  {/* League Filter */}
-                  <div className="space-y-2">
-                    <Label>Select Leagues</Label>
-                    <Select
-                      value={selectedLeagues.length > 0 ? selectedLeagues[0] : ""}
-                      onValueChange={(value) => {
-                        if (value && !selectedLeagues.includes(value)) {
-                          setSelectedLeagues([...selectedLeagues, value]);
-                        }
-                      }}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select leagues..." />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {leagues.map((league) => (
-                          <SelectItem key={league.id} value={league.id.toString()}>
-                            {league.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    {selectedLeagues.length > 0 && (
-                      <div className="flex flex-wrap gap-2 mt-2">
-                        {selectedLeagues.map((leagueId) => {
-                          const league = leagues.find(l => l.id.toString() === leagueId);
-                          return (
-                            <Badge key={leagueId} variant="secondary">
-                              {league?.name || leagueId}
-                              <X
-                                className="ml-1 h-3 w-3 cursor-pointer"
-                                onClick={() => setSelectedLeagues(selectedLeagues.filter(id => id !== leagueId))}
-                              />
-                            </Badge>
-                          );
-                        })}
-                      </div>
-                    )}
                   </div>
 
                   {/* Sort By */}
@@ -462,8 +522,8 @@ export default function DashboardPage() {
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="starting_at">Starting Time</SelectItem>
-                        <SelectItem value="id">Match ID</SelectItem>
-                        <SelectItem value="name">Name</SelectItem>
+                        <SelectItem value="league_name">League Name</SelectItem>
+                        <SelectItem value="country_name">Country</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -481,6 +541,83 @@ export default function DashboardPage() {
                       </SelectContent>
                     </Select>
                   </div>
+
+                  {/* Country Filter */}
+                  <div className="space-y-2 md:col-span-2">
+                    <Label>🌍 Filter by Country ({availableCountries.length} available)</Label>
+                    <Select
+                      value=""
+                      onValueChange={(value) => {
+                        if (value && !selectedCountries.includes(value)) {
+                          setSelectedCountries([...selectedCountries, value]);
+                        }
+                      }}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select countries..." />
+                      </SelectTrigger>
+                      <SelectContent className="max-h-[300px]">
+                        {availableCountries.map((country) => (
+                          <SelectItem key={country.name} value={country.name}>
+                            {country.name} ({country.count} matches)
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {selectedCountries.length > 0 && (
+                      <div className="flex flex-wrap gap-2 mt-2">
+                        {selectedCountries.map((country) => (
+                          <Badge key={country} variant="secondary">
+                            {country}
+                            <X
+                              className="ml-1 h-3 w-3 cursor-pointer"
+                              onClick={() => setSelectedCountries(selectedCountries.filter(c => c !== country))}
+                            />
+                          </Badge>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* League Filter */}
+                  <div className="space-y-2 md:col-span-2 lg:col-span-3">
+                    <Label>⚽ Filter by League ({availableLeagues.length} available)</Label>
+                    <Select
+                      value=""
+                      onValueChange={(value) => {
+                        if (value && !selectedLeagues.includes(value)) {
+                          setSelectedLeagues([...selectedLeagues, value]);
+                        }
+                      }}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select leagues..." />
+                      </SelectTrigger>
+                      <SelectContent className="max-h-[300px]">
+                        {availableLeagues.map((league) => (
+                          <SelectItem key={league.id} value={league.id}>
+                            {league.name} ({league.country}) - {league.count} matches
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {selectedLeagues.length > 0 && (
+                      <div className="flex flex-wrap gap-2 mt-2">
+                        {selectedLeagues.map((leagueId) => {
+                          const league = availableLeagues.find(l => l.id === leagueId);
+                          return (
+                            <Badge key={leagueId} variant="secondary">
+                              {league?.name || leagueId}
+                              <X
+                                className="ml-1 h-3 w-3 cursor-pointer"
+                                onClick={() => setSelectedLeagues(selectedLeagues.filter(id => id !== leagueId))}
+                              />
+                            </Badge>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
                 </div>
 
                 <div className="flex gap-2 pt-4 border-t">
@@ -492,10 +629,13 @@ export default function DashboardPage() {
                     variant="outline"
                     onClick={() => {
                       setSelectedLeagues([]);
+                      setSelectedCountries([]);
                       setDateFrom(new Date().toISOString().split('T')[0]);
                       setDateTo("");
                       setSortBy("starting_at");
                       setOrder("asc");
+                      setShowPredictableOnly(false);
+                      setSearchTeam("");
                     }}
                   >
                     Clear All
@@ -509,9 +649,16 @@ export default function DashboardPage() {
         {/* Fixtures List */}
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center justify-between">
+            <CardTitle className="flex items-center justify-between flex-wrap gap-2">
               <span>Fixtures</span>
-              <Badge variant="secondary">{fixtures.length} matches</Badge>
+              <div className="flex items-center gap-2">
+                {(selectedCountries.length > 0 || selectedLeagues.length > 0 || showPredictableOnly || searchTeam) && (
+                  <Badge variant="outline" className="text-xs">
+                    🔍 {selectedCountries.length + selectedLeagues.length + (showPredictableOnly ? 1 : 0) + (searchTeam ? 1 : 0)} filters active
+                  </Badge>
+                )}
+                <Badge variant="secondary">{fixtures.length} matches</Badge>
+              </div>
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -537,6 +684,11 @@ export default function DashboardPage() {
                       {/* Match Header */}
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2 flex-wrap">
+                          {fixture.country_name && (
+                            <Badge variant="default" className="text-xs">
+                              🌍 {fixture.country_name}
+                            </Badge>
+                          )}
                           {fixture.league_name && (
                             <Badge variant="outline" className="text-xs">
                               {fixture.league_name}
@@ -555,16 +707,20 @@ export default function DashboardPage() {
                           )}
                           {fixture.league_id && (
                             <>
-                              <Link href={`/league/${fixture.league_id}`}>
-                                <Badge variant="outline" className="text-xs cursor-pointer hover:bg-muted">
-                                  📊 Standings
-                                </Badge>
-                              </Link>
-                              <Link href={`/league/${fixture.league_id}/top-scorers`}>
-                                <Badge variant="outline" className="text-xs cursor-pointer hover:bg-muted">
-                                  ⚽ Top Scorers
-                                </Badge>
-                              </Link>
+                              {fixture.has_standings !== false && (
+                                <Link href={`/league/${fixture.league_id}`}>
+                                  <Badge variant="outline" className="text-xs cursor-pointer hover:bg-muted">
+                                    📊 Standings
+                                  </Badge>
+                                </Link>
+                              )}
+                              {fixture.has_top_scorers !== false && (
+                                <Link href={`/league/${fixture.league_id}/top-scorers`}>
+                                  <Badge variant="outline" className="text-xs cursor-pointer hover:bg-muted">
+                                    ⚽ Top Scorers
+                                  </Badge>
+                                </Link>
+                              )}
                             </>
                           )}
                         </div>

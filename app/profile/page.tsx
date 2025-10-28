@@ -25,6 +25,13 @@ interface Prediction {
   coinsWon: number;
   isSettled: boolean;
   createdAt: string;
+  matchData?: {
+    homeTeam: string;
+    awayTeam: string;
+    homeScore: number | null;
+    awayScore: number | null;
+    status: string;
+  };
 }
 
 export default function ProfilePage() {
@@ -32,6 +39,7 @@ export default function ProfilePage() {
   const [user, setUser] = useState<User | null>(null);
   const [predictions, setPredictions] = useState<Prediction[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [checkingPredictions, setCheckingPredictions] = useState<{ [key: number]: boolean }>({});
 
   useEffect(() => {
     fetchUser();
@@ -61,6 +69,79 @@ export default function ProfilePage() {
       }
     } catch (error) {
       console.error("Failed to fetch predictions:", error);
+    }
+  };
+
+  const checkPredictionResult = async (prediction: Prediction) => {
+    setCheckingPredictions(prev => ({ ...prev, [prediction.id]: true }));
+    
+    try {
+      // Fetch match data from SofaScore
+      const response = await fetch(`https://www.sofascore.com/api/v1/event/${prediction.fixtureApiId}`);
+      
+      if (!response.ok) {
+        alert("Could not fetch match data. The match might not be available.");
+        return;
+      }
+      
+      const data = await response.json();
+      const event = data.event;
+      
+      const homeScore = event.homeScore?.current ?? event.homeScore?.display ?? null;
+      const awayScore = event.awayScore?.current ?? event.awayScore?.display ?? null;
+      const status = event.status?.description || event.status?.type || 'Unknown';
+      const isFinished = event.status?.code === 100 || status.toLowerCase().includes('finished') || status.toLowerCase().includes('ft');
+      
+      // Update prediction with match data
+      const updatedPrediction = {
+        ...prediction,
+        matchData: {
+          homeTeam: event.homeTeam?.name || 'Home',
+          awayTeam: event.awayTeam?.name || 'Away',
+          homeScore,
+          awayScore,
+          status,
+        }
+      };
+      
+      // Update in state
+      setPredictions(prev => prev.map(p => p.id === prediction.id ? updatedPrediction : p));
+      
+      if (!isFinished) {
+        alert(`Match Status: ${status}\nThis match is not finished yet. Current score: ${homeScore ?? '-'} - ${awayScore ?? '-'}`);
+        return;
+      }
+      
+      if (homeScore === null || awayScore === null) {
+        alert("Match is finished but scores are not available.");
+        return;
+      }
+      
+      // Check if prediction was correct
+      const predictionCorrect = prediction.predictedHomeScore === homeScore && 
+                                prediction.predictedAwayScore === awayScore;
+      
+      const resultMessage = predictionCorrect 
+        ? `🎉 YOU WON!\n\nYour Prediction: ${prediction.predictedHomeScore} - ${prediction.predictedAwayScore}\nActual Score: ${homeScore} - ${awayScore}\n\nYou should have won ${prediction.coinsWagered * 2} coins!`
+        : `😔 YOU LOST\n\nYour Prediction: ${prediction.predictedHomeScore} - ${prediction.predictedAwayScore}\nActual Score: ${homeScore} - ${awayScore}\n\nBetter luck next time!`;
+      
+      alert(resultMessage);
+      
+      // If prediction is not settled but should be, suggest updating
+      if (!prediction.isSettled && predictionCorrect) {
+        const shouldSettle = window.confirm("This prediction is not marked as settled in the database. Would you like to try settling it now?");
+        if (shouldSettle) {
+          // Here you would call an API to settle the prediction
+          // For now, just show a message
+          alert("Please contact an administrator to settle this prediction manually.");
+        }
+      }
+      
+    } catch (error) {
+      console.error("Failed to check prediction:", error);
+      alert("Failed to check prediction result. Please try again.");
+    } finally {
+      setCheckingPredictions(prev => ({ ...prev, [prediction.id]: false }));
     }
   };
 
@@ -193,28 +274,83 @@ export default function ProfilePage() {
                 {predictions.slice(0, 10).map((prediction) => (
                   <div
                     key={prediction.id}
-                    className="flex items-center justify-between p-3 border rounded-lg"
+                    className="border rounded-lg p-3 space-y-3"
                   >
-                    <div className="flex-1">
-                      <p className="font-semibold">
-                        Prediction: {prediction.predictedHomeScore} - {prediction.predictedAwayScore}
-                      </p>
-                      <p className="text-sm text-muted-foreground">
-                        {new Date(prediction.createdAt).toLocaleDateString()}
-                      </p>
+                    <div className="flex items-center justify-between">
+                      <div className="flex-1">
+                        <p className="font-semibold">
+                          Prediction: {prediction.predictedHomeScore} - {prediction.predictedAwayScore}
+                        </p>
+                        {prediction.matchData && (
+                          <p className="text-sm text-muted-foreground">
+                            {prediction.matchData.homeTeam} vs {prediction.matchData.awayTeam}
+                          </p>
+                        )}
+                        <p className="text-sm text-muted-foreground">
+                          {new Date(prediction.createdAt).toLocaleDateString()}
+                        </p>
+                      </div>
+                      <div className="text-right space-y-1">
+                        <p className="text-sm font-semibold">
+                          Wagered: {prediction.coinsWagered} coins
+                        </p>
+                        {prediction.isSettled ? (
+                          <Badge variant={prediction.coinsWon > 0 ? "default" : "destructive"}>
+                            {prediction.coinsWon > 0 ? `Won ${prediction.coinsWon}` : 'Lost'}
+                          </Badge>
+                        ) : (
+                          <Badge variant="secondary">Pending</Badge>
+                        )}
+                      </div>
                     </div>
-                    <div className="text-right space-y-1">
-                      <p className="text-sm font-semibold">
-                        Wagered: {prediction.coinsWagered} coins
-                      </p>
-                      {prediction.isSettled ? (
-                        <Badge variant={prediction.coinsWon > 0 ? "default" : "destructive"}>
-                          {prediction.coinsWon > 0 ? `Won ${prediction.coinsWon}` : 'Lost'}
-                        </Badge>
-                      ) : (
-                        <Badge variant="secondary">Pending</Badge>
-                      )}
-                    </div>
+                    
+                    {/* Match Result Display */}
+                    {prediction.matchData && (
+                      <div className="pt-2 border-t">
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="text-muted-foreground">Match Result:</span>
+                          <span className="font-semibold">
+                            {prediction.matchData.homeScore !== null && prediction.matchData.awayScore !== null
+                              ? `${prediction.matchData.homeScore} - ${prediction.matchData.awayScore}`
+                              : prediction.matchData.status}
+                          </span>
+                        </div>
+                        {prediction.matchData.homeScore !== null && prediction.matchData.awayScore !== null && (
+                          <div className="mt-1">
+                            {prediction.predictedHomeScore === prediction.matchData.homeScore && 
+                             prediction.predictedAwayScore === prediction.matchData.awayScore ? (
+                              <Badge variant="default" className="text-xs">✓ Correct Prediction!</Badge>
+                            ) : (
+                              <Badge variant="destructive" className="text-xs">✗ Incorrect</Badge>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                    
+                    {/* Check Result Button */}
+                    {!prediction.isSettled && (
+                      <div className="pt-2 border-t">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="w-full"
+                          onClick={() => checkPredictionResult(prediction)}
+                          disabled={checkingPredictions[prediction.id]}
+                        >
+                          {checkingPredictions[prediction.id] ? (
+                            <>
+                              <Loader2 className="mr-2 h-3 w-3 animate-spin" />
+                              Checking...
+                            </>
+                          ) : (
+                            <>
+                              🔍 Check Result Manually
+                            </>
+                          )}
+                        </Button>
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
