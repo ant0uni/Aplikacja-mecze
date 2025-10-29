@@ -1,18 +1,227 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Coins, LogOut, Plus, Loader2, Filter, User, Calendar, X } from "lucide-react";
+import { Coins, LogOut, Plus, Loader2, Filter, User, Calendar, X, TrendingUp, Trophy } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { PredictionDialog } from "@/components/prediction-dialog";
 import Image from "next/image";
+
+// Memoized Fixture Card Component for performance
+const FixtureCard = React.memo(({ 
+  fixture, 
+  isMatchActive, 
+  onPredictClick,
+  onCountryClick,
+}: { 
+  fixture: Fixture; 
+  isMatchActive: (fixture: Fixture) => boolean;
+  onPredictClick: (fixture: Fixture) => void;
+  onCountryClick: (country: string) => void;
+}) => {
+  return (
+    <Link href={`/auth/match/${fixture.api_id}`}>
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        whileHover={{ scale: 1.02, y: -4 }}
+        transition={{ duration: 0.2 }}
+        className={`border rounded-lg p-4 hover:shadow-lg hover:bg-muted/50 transition-all duration-200 cursor-pointer ${
+          fixture.isPopular ? 'border-l-4 border-l-orange-500' : ''
+        }`}
+      >
+        <div className="space-y-3">
+          {/* Match Header */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2 flex-wrap">
+              {fixture.isPopular && (
+                <motion.div
+                  animate={{ scale: [1, 1.1, 1] }}
+                  transition={{ duration: 1.5, repeat: Infinity }}
+                >
+                  <Badge className="text-xs bg-orange-500 hover:bg-orange-600">
+                    🔥 POPULAR
+                  </Badge>
+                </motion.div>
+              )}
+              {fixture.country_name && (
+                <Badge 
+                  variant="default" 
+                  className="text-xs cursor-pointer hover:opacity-80 transition-opacity"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    onCountryClick(fixture.country_name!);
+                  }}
+                  title="Click to filter by this country"
+                >
+                  🌍 {fixture.country_name}
+                </Badge>
+              )}
+              {fixture.league_name && fixture.league_id && (
+                <Badge 
+                  variant="outline" 
+                  className="text-xs cursor-pointer hover:bg-primary hover:text-primary-foreground transition-colors"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    window.location.href = `/auth/league/${fixture.league_id}`;
+                  }}
+                >
+                  🏆 {fixture.league_name}
+                </Badge>
+              )}
+              {!isMatchActive(fixture) && fixture.state_name && (
+                <Badge variant="secondary" className="text-xs">
+                  {fixture.state_name}
+                </Badge>
+              )}
+              {fixture.league_id && (
+                <>
+                  {fixture.has_standings !== false && (
+                    <Badge 
+                      variant="outline" 
+                      className="text-xs cursor-pointer hover:bg-muted"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        window.open(`/auth/league/${fixture.league_id}`, '_blank');
+                      }}
+                    >
+                      📊 Standings
+                    </Badge>
+                  )}
+                  {fixture.has_top_scorers !== false && (
+                    <Badge 
+                      variant="outline" 
+                      className="text-xs cursor-pointer hover:bg-muted"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        window.open(`/auth/league/${fixture.league_id}/top-scorers`, '_blank');
+                      }}
+                    >
+                      ⚽ Top Scorers
+                    </Badge>
+                  )}
+                </>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                <Calendar className="h-3 w-3" />
+                {new Date(fixture.starting_at).toLocaleDateString()}
+              </div>
+              {isMatchActive(fixture) && (
+                <Button
+                  size="sm"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    onPredictClick(fixture);
+                  }}
+                >
+                  Predict
+                </Button>
+              )}
+            </div>
+          </div>
+
+          {/* Teams and Score */}
+          <div className="grid grid-cols-7 gap-2 items-center py-4">
+            {/* Home Team */}
+            <div className="col-span-3 flex items-center gap-3">
+              {fixture.home_team_logo ? (
+                <div className="w-12 h-12 flex-shrink-0 flex items-center justify-center">
+                  <img
+                    src={fixture.home_team_logo}
+                    alt={fixture.home_team_name || "Home"}
+                    className="max-w-full max-h-full object-contain"
+                    onError={(e) => {
+                      const target = e.target as HTMLImageElement;
+                      target.style.display = 'none';
+                    }}
+                  />
+                </div>
+              ) : (
+                <div className="w-12 h-12 flex-shrink-0 bg-muted rounded flex items-center justify-center text-sm font-bold">
+                  {fixture.home_team_name?.substring(0, 2).toUpperCase() || 'H'}
+                </div>
+              )}
+              <span className="font-semibold text-base truncate">
+                {fixture.home_team_name || "Home"}
+              </span>
+            </div>
+
+            {/* Score */}
+            <div className="col-span-1 text-center">
+              {fixture.home_score !== null && fixture.away_score !== null ? (
+                <div className="text-3xl font-bold text-primary">
+                  {fixture.home_score}:{fixture.away_score}
+                </div>
+              ) : (
+                <div className="text-lg font-semibold text-muted-foreground">
+                  {new Date(fixture.starting_at).toLocaleTimeString([], { 
+                    hour: '2-digit', 
+                    minute: '2-digit' 
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* Away Team */}
+            <div className="col-span-3 flex items-center gap-3 justify-end">
+              <span className="font-semibold text-base truncate">
+                {fixture.away_team_name || "Away"}
+              </span>
+              {fixture.away_team_logo ? (
+                <div className="w-12 h-12 flex-shrink-0 flex items-center justify-center">
+                  <img
+                    src={fixture.away_team_logo}
+                    alt={fixture.away_team_name || "Away"}
+                    className="max-w-full max-h-full object-contain"
+                    onError={(e) => {
+                      const target = e.target as HTMLImageElement;
+                      target.style.display = 'none';
+                    }}
+                  />
+                </div>
+              ) : (
+                <div className="w-12 h-12 flex-shrink-0 bg-muted rounded flex items-center justify-center text-sm font-bold">
+                  {fixture.away_team_name?.substring(0, 2).toUpperCase() || 'A'}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Venue */}
+          <div className="flex items-center justify-between pt-2 border-t">
+            {fixture.venue_name ? (
+              <p className="text-xs text-muted-foreground flex items-center gap-1">
+                <span>📍</span>
+                {fixture.venue_name}
+              </p>
+            ) : (
+              <div className="text-xs text-muted-foreground">
+                {new Date(fixture.starting_at).toLocaleTimeString([], { 
+                  hour: '2-digit', 
+                  minute: '2-digit' 
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+      </motion.div>
+    </Link>
+  );
+});
+
+FixtureCard.displayName = 'FixtureCard';
 
 interface User {
   id: number;
@@ -49,6 +258,7 @@ interface Fixture {
   has_top_scorers?: boolean;
   venue_id?: number;
   venue_name?: string;
+  isPopular?: boolean;
 }
 
 export default function DashboardPage() {
@@ -72,21 +282,189 @@ export default function DashboardPage() {
   const [showPredictableOnly, setShowPredictableOnly] = useState(false);
   const [searchTeam, setSearchTeam] = useState("");
   
+  // Popular matches data
+  const [popularMatches, setPopularMatches] = useState<Fixture[]>([]);
+  const [allMatches, setAllMatches] = useState<Fixture[]>([]);
+  
+  // Top players data
+  const [topPlayers, setTopPlayers] = useState<any[]>([]);
+  const [isLoadingPlayers, setIsLoadingPlayers] = useState(false);
+  
+  // Infinite scroll
+  const [displayedFixtures, setDisplayedFixtures] = useState<Fixture[]>([]);
+  const [fixturesPage, setFixturesPage] = useState(1);
+  const [hasMoreFixtures, setHasMoreFixtures] = useState(true);
+  const FIXTURES_PER_PAGE = 40;
+  
+  // Region filter (Poland/Europe/World) - Load from localStorage
+  const [selectedRegion, setSelectedRegion] = useState<"poland" | "europe" | "world">(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("selectedRegion");
+      return (saved === "poland" || saved === "europe" || saved === "world") ? saved : "world";
+    }
+    return "world";
+  });
+  
+  // Save selectedRegion to localStorage whenever it changes
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      localStorage.setItem("selectedRegion", selectedRegion);
+    }
+  }, [selectedRegion]);
+  
   // Unique countries and leagues from current fixtures
   const [availableCountries, setAvailableCountries] = useState<{name: string, count: number}[]>([]);
   const [availableLeagues, setAvailableLeagues] = useState<{id: string, name: string, country: string, count: number}[]>([]);
 
+  // Memoized computations for performance
+  const filteredFixtures = useMemo(() => {
+    let filtered = [...allMatches];
+    
+    // Apply region filter first (Poland/Europe/World)
+    if (selectedRegion === "poland") {
+      filtered = filtered.filter((fixture) => 
+        fixture.country_name?.toLowerCase() === "poland"
+      );
+    } else if (selectedRegion === "europe") {
+      // European countries list
+      const europeanCountries = [
+        "england", "spain", "italy", "germany", "france", "portugal", "netherlands",
+        "belgium", "scotland", "turkey", "greece", "poland", "ukraine", "czech republic",
+        "austria", "switzerland", "denmark", "sweden", "norway", "croatia", "serbia",
+        "romania", "russia", "hungary", "slovakia", "bulgaria", "finland", "ireland",
+        "wales", "northern ireland", "slovenia", "bosnia and herzegovina", "albania",
+        "north macedonia", "montenegro", "cyprus", "luxembourg", "iceland", "malta",
+        "andorra", "liechtenstein", "faroe islands", "gibraltar", "kosovo", "latvia",
+        "lithuania", "estonia", "belarus", "moldova", "armenia", "georgia", "azerbaijan"
+      ];
+      filtered = filtered.filter((fixture) => 
+        europeanCountries.includes(fixture.country_name?.toLowerCase() || "")
+      );
+    }
+    // If "world" is selected, show all matches (no filtering)
+    
+    // Apply date filters
+    if (dateTo) {
+      filtered = filtered.filter((fixture) => {
+        const eventDate = new Date(fixture.starting_at).toISOString().split('T')[0];
+        return eventDate <= dateTo;
+      });
+    }
+    
+    // Apply country filter
+    if (selectedCountries.length > 0) {
+      filtered = filtered.filter((fixture) => 
+        selectedCountries.includes(fixture.country_name || '')
+      );
+    }
+    
+    // Apply league filter
+    if (selectedLeagues.length > 0) {
+      filtered = filtered.filter((fixture) => 
+        selectedLeagues.includes(fixture.league_id?.toString() || '')
+      );
+    }
+    
+    // Apply predictable only filter
+    if (showPredictableOnly) {
+      filtered = filtered.filter((fixture) => {
+        return fixture.state_id === 0 || fixture.state_name === "notstarted" || fixture.state_name === "Not started";
+      });
+    }
+    
+    // Apply team search filter
+    if (searchTeam) {
+      const searchLower = searchTeam.toLowerCase();
+      filtered = filtered.filter((fixture) => 
+        fixture.home_team_name?.toLowerCase().includes(searchLower) ||
+        fixture.away_team_name?.toLowerCase().includes(searchLower)
+      );
+    }
+    
+    // Sort matches
+    filtered.sort((a, b) => {
+      // First priority: Popular matches come first
+      if (a.isPopular && !b.isPopular) return -1;
+      if (!a.isPopular && b.isPopular) return 1;
+      
+      // Second priority: Predictable matches
+      const aIsPredictable = a.state_id === 0 || a.state_name === "notstarted" || a.state_name === "Not started";
+      const bIsPredictable = b.state_id === 0 || b.state_name === "notstarted" || b.state_name === "Not started";
+      
+      if (aIsPredictable && !bIsPredictable) return -1;
+      if (!aIsPredictable && bIsPredictable) return 1;
+      
+      // Third priority: User-selected sorting
+      let aValue: any = a[sortBy as keyof typeof a];
+      let bValue: any = b[sortBy as keyof typeof b];
+      
+      if (sortBy === "starting_at") {
+        aValue = new Date(aValue).getTime();
+        bValue = new Date(bValue).getTime();
+      }
+      
+      if (order === "desc") {
+        return bValue > aValue ? 1 : bValue < aValue ? -1 : 0;
+      } else {
+        return aValue > bValue ? 1 : aValue < bValue ? -1 : 0;
+      }
+    });
+    
+    return filtered;
+  }, [allMatches, selectedCountries, selectedLeagues, dateTo, showPredictableOnly, searchTeam, sortBy, order, selectedRegion]);
+
+  // Update fixtures when filtered results change and reset pagination
+  useEffect(() => {
+    setFixtures(filteredFixtures);
+    setDisplayedFixtures(filteredFixtures.slice(0, FIXTURES_PER_PAGE));
+    setFixturesPage(1);
+    setHasMoreFixtures(filteredFixtures.length > FIXTURES_PER_PAGE);
+  }, [filteredFixtures]);
+
+  // Load more fixtures for infinite scroll
+  const loadMoreFixtures = useCallback(() => {
+    const nextPage = fixturesPage + 1;
+    const startIndex = nextPage * FIXTURES_PER_PAGE;
+    const endIndex = startIndex + FIXTURES_PER_PAGE;
+    const moreFixtures = filteredFixtures.slice(startIndex, endIndex);
+    
+    if (moreFixtures.length > 0) {
+      setDisplayedFixtures(prev => [...prev, ...moreFixtures]);
+      setFixturesPage(nextPage);
+      setHasMoreFixtures(endIndex < filteredFixtures.length);
+    } else {
+      setHasMoreFixtures(false);
+    }
+  }, [fixturesPage, filteredFixtures]);
+
+  // Infinite scroll observer
+  useEffect(() => {
+    const handleScroll = () => {
+      if (window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 500 && hasMoreFixtures && !isLoadingFixtures) {
+        loadMoreFixtures();
+      }
+    };
+
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, [hasMoreFixtures, isLoadingFixtures, loadMoreFixtures]);
+
   // Prediction modal states
   const [selectedFixture, setSelectedFixture] = useState<Fixture | null>(null);
-  const [predictedHomeScore, setPredictedHomeScore] = useState("");
-  const [predictedAwayScore, setPredictedAwayScore] = useState("");
-  const [coinsWagered, setCoinsWagered] = useState("");
-  const [isPredicting, setIsPredicting] = useState(false);
 
   useEffect(() => {
     fetchUser();
+    fetchPopularMatches();
     fetchFixtures();
+    fetchTopPlayers();
   }, []);
+
+  // Refresh data when date changes
+  useEffect(() => {
+    if (dateFrom !== new Date().toISOString().split('T')[0]) {
+      fetchFixtures();
+    }
+  }, [dateFrom]);
 
   const fetchUser = async () => {
     try {
@@ -104,6 +482,50 @@ export default function DashboardPage() {
       setIsLoading(false);
     }
   };
+
+  const fetchPopularMatches = useCallback(async () => {
+    try {
+      // Fetch live events from SofaScore (these are typically the most popular/trending)
+      const response = await fetch('https://www.sofascore.com/api/v1/sport/football/events/live');
+      if (response.ok) {
+        const data = await response.json();
+        const events = data.events || [];
+        
+        // Transform live events to fixture format (these are trending/popular)
+        const transformedEvents = events.slice(0, 10).map((event: any) => ({
+          id: event.id,
+          api_id: event.id,
+          name: `${event.homeTeam?.name || 'Home'} - ${event.awayTeam?.name || 'Away'}`,
+          starting_at: new Date(event.startTimestamp * 1000).toISOString(),
+          result_info: event.slug || null,
+          state_id: event.status?.code || 0,
+          state_name: event.status?.description || event.status?.type || null,
+          home_team_id: event.homeTeam?.id || null,
+          home_team_name: event.homeTeam?.name || null,
+          home_team_logo: event.homeTeam?.id ? `https://api.sofascore.com/api/v1/team/${event.homeTeam.id}/image` : null,
+          away_team_id: event.awayTeam?.id || null,
+          away_team_name: event.awayTeam?.name || null,
+          away_team_logo: event.awayTeam?.id ? `https://api.sofascore.com/api/v1/team/${event.awayTeam.id}/image` : null,
+          home_score: event.homeScore?.current ?? event.homeScore?.display ?? null,
+          away_score: event.awayScore?.current ?? event.awayScore?.display ?? null,
+          league_id: event.tournament?.uniqueTournament?.id || event.tournament?.id || null,
+          league_name: event.tournament?.uniqueTournament?.name || event.tournament?.name || null,
+          country_name: event.tournament?.category?.name || null,
+          has_standings: event.tournament?.uniqueTournament?.hasStandingsGroups || false,
+          has_top_scorers: event.tournament?.uniqueTournament?.hasEventPlayerStatistics || false,
+          venue_id: null,
+          venue_name: null,
+          isPopular: true
+        }));
+        
+        setPopularMatches(transformedEvents);
+      }
+    } catch (error) {
+      console.error("Failed to fetch popular matches:", error);
+    }
+  }, []);
+
+
 
   const fetchFixtures = async () => {
     setIsLoadingFixtures(true);
@@ -161,26 +583,6 @@ export default function DashboardPage() {
         setAvailableCountries(countriesArray);
         setAvailableLeagues(leaguesArray);
         
-        // Apply filters
-        if (dateTo) {
-          events = events.filter((event: any) => {
-            const eventDate = new Date(event.startTimestamp * 1000).toISOString().split('T')[0];
-            return eventDate <= dateTo;
-          });
-        }
-        
-        if (selectedCountries.length > 0) {
-          events = events.filter((event: any) => 
-            selectedCountries.includes(event.tournament?.category?.name)
-          );
-        }
-        
-        if (selectedLeagues.length > 0) {
-          events = events.filter((event: any) => 
-            selectedLeagues.includes(event.tournament?.uniqueTournament?.id?.toString())
-          );
-        }
-        
         // Transform to our fixture format
         let transformedFixtures = events.map((event: any) => ({
           id: event.id,
@@ -207,50 +609,26 @@ export default function DashboardPage() {
           venue_name: null,
         }));
         
-        // Filter by predictable only
-        if (showPredictableOnly) {
-          transformedFixtures = transformedFixtures.filter((fixture: any) => {
-            return fixture.state_id === 0 || fixture.state_name === "notstarted" || fixture.state_name === "Not started";
-          });
-        }
+        // Merge with popular matches (mark popular matches that also appear in regular matches)
+        const popularMatchIds = new Set(popularMatches.map((m: Fixture) => m.api_id));
+        transformedFixtures = transformedFixtures.map((fixture: any) => ({
+          ...fixture,
+          isPopular: popularMatchIds.has(fixture.api_id)
+        }));
         
-        // Filter by team search
-        if (searchTeam) {
-          const searchLower = searchTeam.toLowerCase();
-          transformedFixtures = transformedFixtures.filter((fixture: any) => 
-            fixture.home_team_name?.toLowerCase().includes(searchLower) ||
-            fixture.away_team_name?.toLowerCase().includes(searchLower)
-          );
-        }
-        
-        // Apply sorting - predictable matches (not started) first
-        transformedFixtures.sort((a: any, b: any) => {
-          // First priority: Sort by match status - not started (predictable) matches come first
-          const aIsPredictable = a.state_id === 0 || a.state_name === "notstarted" || a.state_name === "Not started";
-          const bIsPredictable = b.state_id === 0 || b.state_name === "notstarted" || b.state_name === "Not started";
-          
-          if (aIsPredictable && !bIsPredictable) return -1;
-          if (!aIsPredictable && bIsPredictable) return 1;
-          
-          // Second priority: Sort by user-selected criteria (only for matches with same predictability)
-          let aValue: any = a[sortBy as keyof typeof a];
-          let bValue: any = b[sortBy as keyof typeof b];
-          
-          if (sortBy === "starting_at") {
-            aValue = new Date(aValue).getTime();
-            bValue = new Date(bValue).getTime();
-          }
-          
-          if (order === "desc") {
-            return bValue > aValue ? 1 : bValue < aValue ? -1 : 0;
-          } else {
-            return aValue > bValue ? 1 : aValue < bValue ? -1 : 0;
-          }
-        });
+        // Add popular matches that aren't already in the regular matches
+        const regularMatchIds = new Set(transformedFixtures.map((m: any) => m.api_id));
+        const uniquePopularMatches = popularMatches.filter(match => !regularMatchIds.has(match.api_id));
+        transformedFixtures = [...uniquePopularMatches, ...transformedFixtures];
         
         console.log("Transformed fixtures:", transformedFixtures.length);
+        console.log("Popular matches:", popularMatches.length);
         console.log("First fixture:", transformedFixtures[0]);
-        setFixtures(transformedFixtures);
+        
+        // Store all matches for filtering
+        setAllMatches(transformedFixtures);
+        
+        // Don't apply filters here - let the useEffect handle it
       } else {
         console.error("SofaScore API error:", response.status, await response.text());
       }
@@ -258,6 +636,35 @@ export default function DashboardPage() {
       console.error("Failed to fetch fixtures:", error);
     } finally {
       setIsLoadingFixtures(false);
+    }
+  };
+
+  const fetchTopPlayers = async () => {
+    setIsLoadingPlayers(true);
+    try {
+      // Fetch popular players from Premier League (most popular league)
+      const leagueId = 17; // Premier League
+      
+      const seasonsResponse = await fetch(`https://api.sofascore.com/api/v1/unique-tournament/${leagueId}/seasons`);
+      if (!seasonsResponse.ok) {
+        setIsLoadingPlayers(false);
+        return;
+      }
+      
+      const seasonsData = await seasonsResponse.json();
+      const currentSeason = seasonsData.seasons[0];
+      const seasonId = currentSeason.id;
+      
+      const response = await fetch(`https://api.sofascore.com/api/v1/unique-tournament/${leagueId}/season/${seasonId}/top-players/overall`);
+      if (response.ok) {
+        const data = await response.json();
+        const topScorers = data.topPlayers?.goals || [];
+        setTopPlayers(topScorers.slice(0, 10));
+      }
+    } catch (error) {
+      console.error("Failed to fetch top players:", error);
+    } finally {
+      setIsLoadingPlayers(false);
     }
   };
 
@@ -304,69 +711,12 @@ export default function DashboardPage() {
     }
   };
 
-  const handlePredict = async () => {
-    if (!selectedFixture || !predictedHomeScore || !predictedAwayScore || !coinsWagered) {
-      alert("Please fill in all fields");
-      return;
-    }
-
-    const homeScore = parseInt(predictedHomeScore);
-    const awayScore = parseInt(predictedAwayScore);
-    const amount = parseInt(coinsWagered);
-    
-    if (isNaN(homeScore) || homeScore < 0 || isNaN(awayScore) || awayScore < 0) {
-      alert("Please enter valid scores");
-      return;
-    }
-
-    if (isNaN(amount) || amount <= 0) {
-      alert("Please enter a valid coin amount");
-      return;
-    }
-
-    if (user && amount > user.coins) {
-      alert("Insufficient coins!");
-      return;
-    }
-
-    setIsPredicting(true);
-    try {
-      const response = await fetch("/api/predictions", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          fixtureApiId: selectedFixture.api_id,
-          predictedHomeScore: homeScore,
-          predictedAwayScore: awayScore,
-          coinsWagered: amount,
-        }),
-      });
-
-      const data = await response.json();
-
-      if (response.ok) {
-        alert("Prediction created successfully!");
-        setSelectedFixture(null);
-        setPredictedHomeScore("");
-        setPredictedAwayScore("");
-        setCoinsWagered("");
-        fetchUser(); // Refresh user coins
-      } else {
-        alert(data.error || "Failed to create prediction");
-      }
-    } catch (error) {
-      console.error("Failed to create prediction:", error);
-      alert("Failed to create prediction");
-    } finally {
-      setIsPredicting(false);
-    }
-  };
-
   const isMatchActive = (fixture: Fixture) => {
     const matchDate = new Date(fixture.starting_at);
     const now = new Date();
-    // Match is active if it hasn't started yet
-    return matchDate > now;
+    // Match is active if it hasn't started yet and within 24 hours
+    const hoursDiff = (matchDate.getTime() - now.getTime()) / (1000 * 60 * 60);
+    return hoursDiff > 0 && hoursDiff <= 24;
   };
 
   if (isLoading) {
@@ -381,12 +731,51 @@ export default function DashboardPage() {
     <div className="min-h-screen bg-background p-4 md:p-8">
       <div className="max-w-7xl mx-auto space-y-6">
         {/* Header */}
-        <div className="flex items-center justify-between flex-wrap gap-4">
+        <motion.div
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5 }}
+          className="flex items-center justify-between flex-wrap gap-4"
+        >
           <div>
-            <h1 className="text-3xl font-bold">Football Predictions</h1>
-            <p className="text-muted-foreground">Welcome back, {user?.email}</p>
+            <motion.h1
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: 0.2, duration: 0.5 }}
+              className="text-3xl font-bold"
+            >
+              ⚽ Football Predictions
+            </motion.h1>
+            <motion.p
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.3, duration: 0.5 }}
+              className="text-muted-foreground"
+            >
+              Welcome back, {user?.email}
+            </motion.p>
           </div>
-          <div className="flex gap-2">
+          <motion.div
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ delay: 0.2, duration: 0.5 }}
+            className="flex gap-2 items-center"
+          >
+            <div className="flex items-center gap-2">
+              <Label htmlFor="region-select" className="text-sm font-medium">
+                Region:
+              </Label>
+              <Select value={selectedRegion} onValueChange={(value: "poland" | "europe" | "world") => setSelectedRegion(value)}>
+                <SelectTrigger className="w-[140px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="poland">🇵🇱 Poland</SelectItem>
+                  <SelectItem value="europe">🇪🇺 Europe</SelectItem>
+                  <SelectItem value="world">🌍 World</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
             <ThemeToggle />
             <Link href="/profile">
               <Button variant="outline">
@@ -398,17 +787,34 @@ export default function DashboardPage() {
               <LogOut className="mr-2 h-4 w-4" />
               Logout
             </Button>
-          </div>
-        </div>
+          </motion.div>
+        </motion.div>
 
         {/* Coins Card */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Coins className="h-5 w-5" />
-              Your Coins: {user?.coins || 0}
-            </CardTitle>
-          </CardHeader>
+        <motion.div
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ delay: 0.3, duration: 0.5 }}
+        >
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <motion.div
+                  animate={{ rotate: [0, 15, -15, 0] }}
+                  transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+                >
+                  <Coins className="h-5 w-5 text-yellow-500" />
+                </motion.div>
+                Your Coins: <motion.span
+                  key={user?.coins}
+                  initial={{ scale: 1.5, color: "#fbbf24" }}
+                  animate={{ scale: 1, color: "inherit" }}
+                  transition={{ duration: 0.5 }}
+                >
+                  {user?.coins || 0}
+                </motion.span>
+              </CardTitle>
+            </CardHeader>
           <CardContent>
             <form onSubmit={handleAddCoins} className="flex gap-2">
               <div className="flex-1">
@@ -439,6 +845,7 @@ export default function DashboardPage() {
             </p>
           </CardContent>
         </Card>
+      </motion.div>
 
         {/* Search and Filters */}
         <Card>
@@ -621,10 +1028,10 @@ export default function DashboardPage() {
                 </div>
 
                 <div className="flex gap-2 pt-4 border-t">
-                  <Button onClick={fetchFixtures} className="flex-1">
-                    {isLoadingFixtures && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                    Apply Filters
-                  </Button>
+                  <div className="text-sm text-muted-foreground flex items-center gap-2 flex-1">
+                    ⚡ Filters are applied instantly
+                    {isLoadingFixtures && <Loader2 className="h-4 w-4 animate-spin" />}
+                  </div>
                   <Button
                     variant="outline"
                     onClick={() => {
@@ -646,271 +1053,317 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
 
-        {/* Fixtures List */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center justify-between flex-wrap gap-2">
-              <span>Fixtures</span>
-              <div className="flex items-center gap-2">
-                {(selectedCountries.length > 0 || selectedLeagues.length > 0 || showPredictableOnly || searchTeam) && (
-                  <Badge variant="outline" className="text-xs">
-                    🔍 {selectedCountries.length + selectedLeagues.length + (showPredictableOnly ? 1 : 0) + (searchTeam ? 1 : 0)} filters active
-                  </Badge>
-                )}
-                <Badge variant="secondary">{fixtures.length} matches</Badge>
-              </div>
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {isLoadingFixtures ? (
-              <div className="flex justify-center py-12">
-                <Loader2 className="h-8 w-8 animate-spin" />
-              </div>
-            ) : fixtures.length === 0 ? (
-              <p className="text-muted-foreground text-center py-8">
-                No fixtures found. Try adjusting your filters or check your API configuration.
-              </p>
-            ) : (
-              <div className="space-y-3">
-                {fixtures.map((fixture) => {
-                  console.log("Rendering fixture:", { id: fixture.id, api_id: fixture.api_id, name: fixture.name });
-                  
-                  return (
-                  <div
-                    key={fixture.id}
-                    className="border rounded-lg p-4 hover:bg-muted/50 transition-colors"
+        {/* Popular Matches */}
+        {popularMatches.length > 0 && !showFilters && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5 }}
+          >
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <motion.div
+                    animate={{ rotate: [0, 10, -10, 0] }}
+                    transition={{ duration: 2, repeat: Infinity }}
                   >
-                    <div className="space-y-3">
-                      {/* Match Header */}
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          {fixture.country_name && (
-                            <Badge variant="default" className="text-xs">
-                              🌍 {fixture.country_name}
-                            </Badge>
-                          )}
-                          {fixture.league_name && (
-                            <Badge variant="outline" className="text-xs">
-                              {fixture.league_name}
-                            </Badge>
-                          )}
-                          {isMatchActive(fixture) ? (
-                            <Badge className="text-xs bg-green-500 hover:bg-green-600">
-                              ⚡ Can Predict
-                            </Badge>
-                          ) : (
-                            fixture.state_name && (
-                              <Badge variant="secondary" className="text-xs">
-                                {fixture.state_name}
-                              </Badge>
-                            )
-                          )}
-                          {fixture.league_id && (
-                            <>
-                              {fixture.has_standings !== false && (
-                                <Link href={`/league/${fixture.league_id}`}>
-                                  <Badge variant="outline" className="text-xs cursor-pointer hover:bg-muted">
-                                    📊 Standings
-                                  </Badge>
-                                </Link>
-                              )}
-                              {fixture.has_top_scorers !== false && (
-                                <Link href={`/league/${fixture.league_id}/top-scorers`}>
-                                  <Badge variant="outline" className="text-xs cursor-pointer hover:bg-muted">
-                                    ⚽ Top Scorers
-                                  </Badge>
-                                </Link>
-                              )}
-                            </>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                          <Calendar className="h-3 w-3" />
-                          {new Date(fixture.starting_at).toLocaleDateString()}
-                        </div>
-                      </div>
-
-                      {/* Teams and Score */}
-                      <Link href={`/match/${fixture.api_id}`}>
-                        <div className="grid grid-cols-7 gap-2 items-center py-2">
-                          {/* Home Team */}
-                          <div className="col-span-3 flex items-center gap-2">
-                            {fixture.home_team_logo ? (
-                              <div className="w-10 h-10 flex-shrink-0 flex items-center justify-center">
-                                <img
-                                  src={fixture.home_team_logo}
-                                  alt={fixture.home_team_name || "Home"}
-                                  className="max-w-full max-h-full object-contain"
-                                  onError={(e) => {
-                                    const target = e.target as HTMLImageElement;
-                                    target.style.display = 'none';
-                                  }}
-                                />
-                              </div>
-                            ) : (
-                              <div className="w-10 h-10 flex-shrink-0 bg-muted rounded flex items-center justify-center text-xs font-bold">
-                                {fixture.home_team_name?.substring(0, 2).toUpperCase() || 'H'}
-                              </div>
-                            )}
-                            <span className="font-semibold text-sm truncate">
-                              {fixture.home_team_name || "Home"}
-                            </span>
-                          </div>
-
-                          {/* Score */}
-                          <div className="col-span-1 text-center">
-                            {fixture.home_score !== null && fixture.away_score !== null ? (
-                              <div className="text-xl font-bold">
-                                {fixture.home_score}:{fixture.away_score}
-                              </div>
-                            ) : (
-                              <div className="text-sm text-muted-foreground">
-                                {new Date(fixture.starting_at).toLocaleTimeString([], { 
-                                  hour: '2-digit', 
-                                  minute: '2-digit' 
-                                })}
-                              </div>
-                            )}
-                          </div>
-
-                          {/* Away Team */}
-                          <div className="col-span-3 flex items-center gap-2 justify-end">
-                            <span className="font-semibold text-sm truncate">
-                              {fixture.away_team_name || "Away"}
-                            </span>
-                            {fixture.away_team_logo ? (
-                              <div className="w-10 h-10 flex-shrink-0 flex items-center justify-center">
-                                <img
-                                  src={fixture.away_team_logo}
-                                  alt={fixture.away_team_name || "Away"}
-                                  className="max-w-full max-h-full object-contain"
-                                  onError={(e) => {
-                                    const target = e.target as HTMLImageElement;
-                                    target.style.display = 'none';
-                                  }}
-                                />
-                              </div>
-                            ) : (
-                              <div className="w-10 h-10 flex-shrink-0 bg-muted rounded flex items-center justify-center text-xs font-bold">
-                                {fixture.away_team_name?.substring(0, 2).toUpperCase() || 'A'}
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      </Link>
-
-                      {/* Venue and Actions */}
-                      <div className="flex items-center justify-between pt-2 border-t">
-                        {fixture.venue_name ? (
-                          <p className="text-xs text-muted-foreground flex items-center gap-1">
-                            <span>📍</span>
-                            {fixture.venue_name}
-                          </p>
-                        ) : (
-                          <div></div>
-                        )}
-                        <div className="flex gap-2">
-                          <Link href={`/match/${fixture.api_id}`}>
-                            <Button size="sm" variant="outline">
-                              Details
-                            </Button>
-                          </Link>
-                          {isMatchActive(fixture) && (
-                            <Dialog>
-                              <DialogTrigger asChild>
-                                <Button
-                                  size="sm"
-                                  onClick={() => setSelectedFixture(fixture)}
-                                >
-                                  Predict
-                                </Button>
-                              </DialogTrigger>
-                              <DialogContent>
-                                <DialogHeader>
-                                  <DialogTitle>Make Your Prediction</DialogTitle>
-                                  <DialogDescription>
-                                    Predict the score for: {fixture.name}
-                                  </DialogDescription>
-                                </DialogHeader>
-                                <div className="space-y-4 py-4">
-                                  <div className="space-y-2">
-                                    <Label>Match Date</Label>
-                                    <p className="text-sm text-muted-foreground">
-                                      {new Date(fixture.starting_at).toLocaleString()}
-                                    </p>
-                                  </div>
-                                  <div className="space-y-2">
-                                    <Label>Predicted Score</Label>
-                                    <div className="grid grid-cols-3 gap-2 items-center">
-                                      <div className="space-y-1">
-                                        <Label htmlFor="homeScore" className="text-xs">
-                                          {fixture.home_team_name || "Home"}
-                                        </Label>
-                                        <Input
-                                          id="homeScore"
-                                          type="number"
-                                          placeholder="0"
-                                          value={predictedHomeScore}
-                                          onChange={(e) => setPredictedHomeScore(e.target.value)}
-                                          min="0"
-                                          max="20"
-                                        />
-                                      </div>
-                                      <div className="text-center text-2xl font-bold">-</div>
-                                      <div className="space-y-1">
-                                        <Label htmlFor="awayScore" className="text-xs">
-                                          {fixture.away_team_name || "Away"}
-                                        </Label>
-                                        <Input
-                                          id="awayScore"
-                                          type="number"
-                                          placeholder="0"
-                                          value={predictedAwayScore}
-                                          onChange={(e) => setPredictedAwayScore(e.target.value)}
-                                          min="0"
-                                          max="20"
-                                        />
-                                      </div>
-                                    </div>
-                                  </div>
-                                  <div className="space-y-2">
-                                    <Label htmlFor="wager">Coins to Wager</Label>
-                                    <Input
-                                      id="wager"
-                                      type="number"
-                                      placeholder="Enter amount"
-                                      value={coinsWagered}
-                                      onChange={(e) => setCoinsWagered(e.target.value)}
-                                      min="1"
-                                      max={user?.coins || 0}
+                    <TrendingUp className="h-5 w-5 text-orange-500" />
+                  </motion.div>
+                  Popular Matches (Live & Trending)
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {popularMatches.slice(0, 6).map((fixture, index) => (
+                    <motion.div
+                      key={fixture.id}
+                      initial={{ opacity: 0, scale: 0.8 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      transition={{ delay: index * 0.1, duration: 0.3 }}
+                    >
+                      <Link href={`/auth/match/${fixture.api_id}`} className="block">
+                        <motion.div
+                          whileHover={{ scale: 1.05, y: -5 }}
+                          transition={{ duration: 0.2 }}
+                        >
+                          <Card className="cursor-pointer hover:shadow-lg transition-all duration-200 border-l-4 border-l-orange-500 h-full relative overflow-hidden">
+                            {/* Animated gradient background */}
+                            <motion.div
+                              className="absolute inset-0 bg-gradient-to-r from-orange-500/5 to-red-500/5"
+                              animate={{
+                                opacity: [0.3, 0.6, 0.3],
+                              }}
+                              transition={{ duration: 2, repeat: Infinity }}
+                            />
+                            <CardContent className="p-4 relative z-10">
+                              <div className="space-y-3">
+                                {/* Match Header */}
+                                <div className="flex items-center justify-between">
+                                  <div className="flex items-center gap-2">
+                                    <motion.div
+                                      animate={{ scale: [1, 1.2, 1] }}
+                                      transition={{ duration: 1, repeat: Infinity }}
+                                      className="w-2 h-2 bg-red-500 rounded-full"
                                     />
-                                    <p className="text-xs text-muted-foreground">
-                                      Available: {user?.coins || 0} coins
-                                    </p>
+                                    <Badge className="text-xs bg-orange-500 hover:bg-orange-600">
+                                      🔥 LIVE
+                                    </Badge>
                                   </div>
+                                  {fixture.league_name && fixture.league_id && (
+                                    <Badge 
+                                      variant="outline" 
+                                      className="text-xs cursor-pointer hover:bg-primary hover:text-primary-foreground transition-colors"
+                                      onClick={(e) => {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        window.location.href = `/auth/league/${fixture.league_id}`;
+                                      }}
+                                    >
+                                      🏆 {fixture.league_name}
+                                    </Badge>
+                                  )}
                                 </div>
-                                <DialogFooter>
-                                  <Button
-                                    onClick={handlePredict}
-                                    disabled={isPredicting || !predictedHomeScore || !predictedAwayScore || !coinsWagered}
-                                  >
-                                    {isPredicting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                                    Confirm Prediction
-                                  </Button>
-                                </DialogFooter>
-                              </DialogContent>
-                            </Dialog>
-                          )}
+
+                                {/* Teams and Score */}
+                                <div className="text-center space-y-2">
+                                  <div className="flex items-center justify-between gap-2">
+                                    <div className="flex items-center gap-2 flex-1">
+                                      {fixture.home_team_logo && (
+                                        <div className="w-8 h-8 flex-shrink-0 flex items-center justify-center">
+                                          <img
+                                            src={fixture.home_team_logo}
+                                            alt={fixture.home_team_name || "Home"}
+                                            className="max-w-full max-h-full object-contain"
+                                            onError={(e) => {
+                                              const target = e.target as HTMLImageElement;
+                                              target.style.display = 'none';
+                                            }}
+                                          />
+                                        </div>
+                                      )}
+                                <span className="font-medium text-sm truncate">
+                                  {fixture.home_team_name}
+                                </span>
+                              </div>
+                              <div className="text-2xl font-bold mx-2">
+                                {fixture.home_score !== null && fixture.away_score !== null ? (
+                                  `${fixture.home_score}:${fixture.away_score}`
+                                ) : (
+                                  "VS"
+                                )}
+                              </div>
+                              <div className="flex items-center gap-2 flex-1 justify-end">
+                                <span className="font-medium text-sm truncate">
+                                  {fixture.away_team_name}
+                                </span>
+                                {fixture.away_team_logo && (
+                                  <div className="w-8 h-8 flex-shrink-0 flex items-center justify-center">
+                                    <img
+                                      src={fixture.away_team_logo}
+                                      alt={fixture.away_team_name || "Away"}
+                                      className="max-w-full max-h-full object-contain"
+                                      onError={(e) => {
+                                        const target = e.target as HTMLImageElement;
+                                        target.style.display = 'none';
+                                      }}
+                                    />
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </div>
                         </div>
-                      </div>
-                    </div>
-                  </div>
-                );
-                })}
+                      </CardContent>
+                    </Card>
+                  </motion.div>
+                </Link>
+              </motion.div>
+                ))}
               </div>
-            )}
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        </motion.div>
+        )}
+
+        {/* Top Players */}
+        {topPlayers.length > 0 && !showFilters && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.6, duration: 0.5 }}
+          >
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Trophy className="h-5 w-5 text-yellow-500" />
+                  Top Scorers - Premier League
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+                  {topPlayers.map((playerData, index) => (
+                    <motion.div
+                      key={playerData.player.id}
+                      initial={{ opacity: 0, scale: 0.8 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      transition={{ delay: index * 0.1, duration: 0.3 }}
+                    >
+                      <Link href={`/auth/player/${playerData.player.id}`}>
+                        <motion.div
+                          whileHover={{ scale: 1.05, y: -5 }}
+                          transition={{ type: "spring", stiffness: 300 }}
+                          className="text-center p-3 rounded-lg border hover:shadow-lg transition-all cursor-pointer"
+                        >
+                          <div className="relative w-16 h-16 mx-auto mb-2">
+                            <div className="w-full h-full rounded-full overflow-hidden border-2 border-primary/20 bg-muted flex items-center justify-center">
+                              <img
+                                src={`https://api.sofascore.com/api/v1/player/${playerData.player.id}/image`}
+                                alt={playerData.player.name}
+                                className="w-full h-full object-cover"
+                                onError={(e) => {
+                                  const target = e.target as HTMLImageElement;
+                                  target.style.display = 'none';
+                                  if (target.parentElement) {
+                                    target.parentElement.innerHTML = `<div class="w-full h-full flex items-center justify-center text-xl font-bold">${playerData.player.name.substring(0, 2).toUpperCase()}</div>`;
+                                  }
+                                }}
+                              />
+                            </div>
+                            <div className="absolute -top-1 -right-1 w-6 h-6 bg-yellow-500 rounded-full flex items-center justify-center text-xs font-bold text-white shadow-lg">
+                              {index + 1}
+                            </div>
+                          </div>
+                          <p className="font-semibold text-sm truncate mb-1">{playerData.player.name}</p>
+                          <div className="flex items-center justify-center gap-1">
+                            <span className="text-xs">⚽</span>
+                            <span className="text-sm font-bold text-primary">{playerData.statistics.goals}</span>
+                          </div>
+                        </motion.div>
+                      </Link>
+                    </motion.div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          </motion.div>
+        )}
+
+        {/* Fixtures List */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.4, duration: 0.5 }}
+        >
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center justify-between flex-wrap gap-2">
+                <span>All Fixtures</span>
+                <div className="flex items-center gap-2">
+                  {(selectedCountries.length > 0 || selectedLeagues.length > 0 || showPredictableOnly || searchTeam) && (
+                    <motion.div
+                      initial={{ scale: 0 }}
+                      animate={{ scale: 1 }}
+                      transition={{ type: "spring", stiffness: 500, damping: 30 }}
+                    >
+                      <Badge variant="outline" className="text-xs">
+                        🔍 {selectedCountries.length + selectedLeagues.length + (showPredictableOnly ? 1 : 0) + (searchTeam ? 1 : 0)} filters active
+                      </Badge>
+                    </motion.div>
+                  )}
+                  <Badge variant="secondary">{fixtures.length} matches</Badge>
+                </div>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {isLoadingFixtures ? (
+                <div className="flex justify-center py-12">
+                  <Loader2 className="h-8 w-8 animate-spin" />
+                </div>
+              ) : fixtures.length === 0 ? (
+                <motion.p
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  className="text-muted-foreground text-center py-8"
+                >
+                  No fixtures found. Try adjusting your filters or check your API configuration.
+                </motion.p>
+              ) : (
+                <>
+                  <div className="space-y-3">
+                    <AnimatePresence mode="popLayout">
+                      {displayedFixtures.map((fixture, index) => (
+                        <motion.div
+                          key={fixture.id}
+                          layout
+                          initial={{ opacity: 0, x: -20 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          exit={{ opacity: 0, x: 20 }}
+                          transition={{ delay: Math.min(index * 0.02, 0.5), duration: 0.3 }}
+                        >
+                          <FixtureCard
+                            fixture={fixture}
+                            isMatchActive={isMatchActive}
+                            onPredictClick={setSelectedFixture}
+                            onCountryClick={(country) => {
+                              if (!selectedCountries.includes(country)) {
+                                setSelectedCountries([...selectedCountries, country]);
+                                setShowFilters(true);
+                              }
+                            }}
+                          />
+                        </motion.div>
+                      ))}
+                    </AnimatePresence>
+                  </div>
+                  
+                  {/* Load More Indicator */}
+                  {hasMoreFixtures && (
+                    <motion.div
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      className="flex justify-center py-8"
+                    >
+                      <motion.div
+                        animate={{ rotate: 360 }}
+                        transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
+                      >
+                        <Loader2 className="h-6 w-6 text-muted-foreground" />
+                      </motion.div>
+                      <span className="ml-2 text-muted-foreground">Loading more matches...</span>
+                    </motion.div>
+                  )}
+                  
+                  {!hasMoreFixtures && displayedFixtures.length > FIXTURES_PER_PAGE && (
+                    <motion.p
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      className="text-center text-muted-foreground py-4"
+                    >
+                      All matches loaded ({displayedFixtures.length} total)
+                    </motion.p>
+                  )}
+                </>
+              )}
+            </CardContent>
+          </Card>
+        </motion.div>
+
+        {/* Prediction Dialog */}
+        <PredictionDialog
+          isOpen={!!selectedFixture}
+          onClose={() => setSelectedFixture(null)}
+          fixture={selectedFixture ? {
+            id: selectedFixture.api_id,
+            name: selectedFixture.name,
+            starting_at: selectedFixture.starting_at,
+            home_team_name: selectedFixture.home_team_name || "Home",
+            away_team_name: selectedFixture.away_team_name || "Away",
+          } : null}
+          onSuccess={() => {
+            fetchFixtures();
+            fetchUser();
+          }}
+        />
       </div>
     </div>
   );

@@ -217,9 +217,7 @@ export default function MatchPage() {
           <CardContent className="pt-6">
             <p className="text-center text-muted-foreground">{error || "Match not found"}</p>
             <div className="flex justify-center mt-4">
-              <Link href="/auth/dashboard">
-                <Button>Back to Dashboard</Button>
-              </Link>
+              <Button onClick={() => router.back()}>Go Back</Button>
             </div>
           </CardContent>
         </Card>
@@ -232,11 +230,9 @@ export default function MatchPage() {
       <div className="max-w-4xl mx-auto space-y-6">
         {/* Header */}
         <div className="flex items-center gap-4">
-          <Link href="/auth/dashboard">
-            <Button variant="outline" size="icon">
-              <ArrowLeft className="h-4 w-4" />
-            </Button>
-          </Link>
+          <Button variant="outline" size="icon" onClick={() => router.back()}>
+            <ArrowLeft className="h-4 w-4" />
+          </Button>
           <div className="flex-1">
             <h1 className="text-3xl font-bold">Match Details</h1>
             <p className="text-muted-foreground">View match information and statistics</p>
@@ -495,9 +491,9 @@ export default function MatchPage() {
               </Button>
             </Link>
           )}
-          <Link href="/auth/dashboard">
-            <Button variant="outline">Back to Dashboard</Button>
-          </Link>
+          <Button variant="outline" onClick={() => router.back()}>
+            Back
+          </Button>
         </div>
       </div>
     </div>

@@ -3,7 +3,7 @@ import type { NextRequest } from "next/server";
 import { verifyToken } from "@/lib/auth";
 
 const publicPaths = ["/", "/login", "/register"];
-const protectedPaths = ["/auth"];
+const protectedPaths = ["/auth", "/profile"];
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;

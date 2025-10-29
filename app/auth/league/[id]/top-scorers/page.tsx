@@ -167,28 +167,47 @@ export default function TopScorersPage() {
                     <TableRow key={scorer.player.id}>
                       <TableCell className="font-medium">{index + 1}</TableCell>
                       <TableCell>
-                        <div className="flex items-center gap-2">
-                          <span className="font-medium">{scorer.player.name}</span>
-                          <span className="text-xs text-muted-foreground">
-                            ({scorer.player.position})
-                          </span>
-                        </div>
+                        <Link href={`/auth/player/${scorer.player.id}`}>
+                          <div className="flex items-center gap-3 hover:opacity-80 transition-opacity cursor-pointer">
+                            <div className="w-10 h-10 flex-shrink-0 rounded-full overflow-hidden bg-muted flex items-center justify-center">
+                              <img
+                                src={`https://api.sofascore.com/api/v1/player/${scorer.player.id}/image`}
+                                alt={scorer.player.name}
+                                className="w-full h-full object-cover"
+                                onError={(e) => {
+                                  const target = e.target as HTMLImageElement;
+                                  target.style.display = 'none';
+                                  const parent = target.parentElement;
+                                  if (parent) {
+                                    parent.innerHTML = `<span class="text-xs font-bold">${scorer.player.name.substring(0, 2).toUpperCase()}</span>`;
+                                  }
+                                }}
+                              />
+                            </div>
+                            <div>
+                              <div className="font-medium">{scorer.player.name}</div>
+                              <div className="text-xs text-muted-foreground">{scorer.player.position}</div>
+                            </div>
+                          </div>
+                        </Link>
                       </TableCell>
                       <TableCell>
-                        <div className="flex items-center gap-2">
-                          <div className="w-5 h-5 flex-shrink-0 flex items-center justify-center">
-                            <img
-                              src={`https://api.sofascore.com/api/v1/team/${scorer.team.id}/image`}
-                              alt={scorer.team.name}
-                              className="max-w-full max-h-full object-contain"
-                              onError={(e) => {
-                                const target = e.target as HTMLImageElement;
-                                target.style.display = 'none';
-                              }}
-                            />
+                        <Link href={`/auth/team/${scorer.team.id}`}>
+                          <div className="flex items-center gap-2 hover:opacity-80 transition-opacity cursor-pointer">
+                            <div className="w-6 h-6 flex-shrink-0 flex items-center justify-center">
+                              <img
+                                src={`https://api.sofascore.com/api/v1/team/${scorer.team.id}/image`}
+                                alt={scorer.team.name}
+                                className="max-w-full max-h-full object-contain"
+                                onError={(e) => {
+                                  const target = e.target as HTMLImageElement;
+                                  target.style.display = 'none';
+                                }}
+                              />
+                            </div>
+                            <span className="text-sm font-medium">{scorer.team.name}</span>
                           </div>
-                          <span className="text-sm">{scorer.team.shortName}</span>
-                        </div>
+                        </Link>
                       </TableCell>
                       <TableCell className="text-center">{scorer.statistics.appearances}</TableCell>
                       <TableCell className="text-center font-bold text-green-600">

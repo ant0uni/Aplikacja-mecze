@@ -65,11 +65,61 @@ export default function ProfilePage() {
       const response = await fetch("/api/predictions");
       if (response.ok) {
         const data = await response.json();
-        setPredictions(data.predictions || []);
+        const predictions = data.predictions || [];
+        setPredictions(predictions);
+        
+        // Auto-check all predictions after fetching
+        await autoCheckAllPredictions(predictions);
       }
     } catch (error) {
       console.error("Failed to fetch predictions:", error);
     }
+  };
+
+  const autoCheckAllPredictions = async (predictionsToCheck: Prediction[]) => {
+    console.log("Auto-checking all predictions...");
+    
+    for (const prediction of predictionsToCheck) {
+      try {
+        // Fetch match data from SofaScore
+        const response = await fetch(`https://www.sofascore.com/api/v1/event/${prediction.fixtureApiId}`);
+        
+        if (!response.ok) {
+          console.log(`Could not fetch data for match ${prediction.fixtureApiId}`);
+          continue;
+        }
+        
+        const data = await response.json();
+        const event = data.event;
+        
+        const homeScore = event.homeScore?.current ?? event.homeScore?.display ?? null;
+        const awayScore = event.awayScore?.current ?? event.awayScore?.display ?? null;
+        const status = event.status?.description || event.status?.type || 'Unknown';
+        
+        // Update prediction with match data
+        const updatedPrediction = {
+          ...prediction,
+          matchData: {
+            homeTeam: event.homeTeam?.name || 'Home',
+            awayTeam: event.awayTeam?.name || 'Away',
+            homeScore,
+            awayScore,
+            status,
+          }
+        };
+        
+        // Update in state
+        setPredictions(prev => prev.map(p => p.id === prediction.id ? updatedPrediction : p));
+        
+        // Small delay to avoid rate limiting
+        await new Promise(resolve => setTimeout(resolve, 100));
+        
+      } catch (error) {
+        console.error(`Failed to check prediction ${prediction.id}:`, error);
+      }
+    }
+    
+    console.log("Auto-check completed for all predictions");
   };
 
   const checkPredictionResult = async (prediction: Prediction) => {
@@ -164,11 +214,9 @@ export default function ProfilePage() {
       <div className="max-w-4xl mx-auto space-y-6">
         {/* Header */}
         <div className="flex items-center gap-4">
-          <Link href="/">
-            <Button variant="outline" size="icon">
-              <ArrowLeft className="h-4 w-4" />
-            </Button>
-          </Link>
+          <Button variant="outline" size="icon" onClick={() => router.push('/auth/dashboard')}>
+            <ArrowLeft className="h-4 w-4" />
+          </Button>
           <div>
             <h1 className="text-3xl font-bold">Profile & Settings</h1>
             <p className="text-muted-foreground">Manage your account and view statistics</p>
