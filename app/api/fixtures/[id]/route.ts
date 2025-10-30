@@ -2,6 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import { fixtures } from "@/db/schema";
 import { eq } from "drizzle-orm";
+import { handleOptions } from "@/lib/cors";
+
+export async function OPTIONS() {
+  return handleOptions();
+}
 
 export async function GET(
   request: NextRequest,
@@ -105,6 +110,10 @@ export async function GET(
     
     const response = await fetch(url, {
       next: { revalidate: 60 }, // Cache for 1 minute
+      headers: {
+        'Accept': 'application/json',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+      }
     });
 
     if (!response.ok) {
@@ -213,12 +222,26 @@ export async function GET(
       lineups: [],
     };
 
-    return NextResponse.json({ fixture: transformed }, { status: 200 });
+    return NextResponse.json({ fixture: transformed }, { 
+      status: 200,
+      headers: {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'GET, OPTIONS',
+        'Access-Control-Allow-Headers': 'Content-Type',
+      }
+    });
   } catch (error: any) {
     console.error("Fetch fixture error:", error);
     return NextResponse.json(
       { error: "Internal server error", message: error.message },
-      { status: 500 }
+      { 
+        status: 500,
+        headers: {
+          'Access-Control-Allow-Origin': '*',
+          'Access-Control-Allow-Methods': 'GET, OPTIONS',
+          'Access-Control-Allow-Headers': 'Content-Type',
+        }
+      }
     );
   }
 }

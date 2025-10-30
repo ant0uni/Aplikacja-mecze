@@ -1,7 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
+import { handleOptions } from "@/lib/cors";
 
 const SPORTMONKS_API_BASE = "https://api.sportmonks.com/v3/football";
 const API_TOKEN = process.env.SPORTMONKS_API_TOKEN;
+
+export async function OPTIONS() {
+  return handleOptions();
+}
 
 export async function GET(request: NextRequest) {
   try {
@@ -31,11 +36,36 @@ export async function GET(request: NextRequest) {
 
     const response = await fetch(url, {
       next: { revalidate: 3600 }, // Cache for 1 hour
+      headers: {
+        'Accept': 'application/json',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+      }
     });
 
     if (!response.ok) {
       const errorText = await response.text();
       console.error("SportMonks API error:", response.status, errorText);
+      
+      // If API is blocked or token is invalid, return empty array
+      if (response.status === 403 || response.status === 401) {
+        console.warn("SportMonks API blocked request (403/401), returning empty leagues");
+        return NextResponse.json(
+          { 
+            leagues: [],
+            pagination: null,
+            warning: "Unable to fetch leagues from external API. Please check API configuration."
+          },
+          { 
+            status: 200,
+            headers: {
+              'Access-Control-Allow-Origin': '*',
+              'Access-Control-Allow-Methods': 'GET, OPTIONS',
+              'Access-Control-Allow-Headers': 'Content-Type',
+            }
+          }
+        );
+      }
+      
       throw new Error(`Failed to fetch leagues: ${response.status}`);
     }
 
@@ -46,13 +76,27 @@ export async function GET(request: NextRequest) {
         leagues: data.data || [],
         pagination: data.pagination || null,
       },
-      { status: 200 }
+      { 
+        status: 200,
+        headers: {
+          'Access-Control-Allow-Origin': '*',
+          'Access-Control-Allow-Methods': 'GET, OPTIONS',
+          'Access-Control-Allow-Headers': 'Content-Type',
+        }
+      }
     );
   } catch (error: any) {
     console.error("Leagues API error:", error);
     return NextResponse.json(
       { error: error.message || "Failed to fetch leagues" },
-      { status: 500 }
+      { 
+        status: 500,
+        headers: {
+          'Access-Control-Allow-Origin': '*',
+          'Access-Control-Allow-Methods': 'GET, OPTIONS',
+          'Access-Control-Allow-Headers': 'Content-Type',
+        }
+      }
     );
   }
 }
