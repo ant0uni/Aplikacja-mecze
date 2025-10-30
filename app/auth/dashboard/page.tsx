@@ -658,6 +658,17 @@ export default function DashboardPage() {
     fetchPopularMatches();
     fetchFixtures();
     fetchTopPlayers(topLeagues[0].id);
+    
+    // Preload all other leagues' data in the background to prevent lag
+    // This happens silently and won't affect the UI
+    setTimeout(() => {
+      topLeagues.slice(1).forEach((league, index) => {
+        // Stagger the preloading by 200ms each to avoid overwhelming the API
+        setTimeout(() => {
+          fetchTopPlayers(league.id);
+        }, index * 200);
+      });
+    }, 1000); // Wait 1 second before starting preload
   }, []);
 
   // Debounce search input for performance
@@ -750,8 +761,8 @@ export default function DashboardPage() {
             isPopular: true
           }));
         },
-        ApiCache.DURATIONS.SHORT, // Cache for 5 minutes (live data changes frequently)
-        true // Use stale-while-revalidate for instant UI
+        ApiCache.DURATIONS.SHORT, // Cache for 2 minutes (live data changes frequently)
+        false // Don't use stale-while-revalidate - refresh only when expired
       );
       
       setPopularMatches(transformedEvents);
@@ -895,30 +906,49 @@ export default function DashboardPage() {
       const data = await ApiCache.getOrFetch(
         cacheKey,
         async () => {
-          const seasonsResponse = await fetch(`https://api.sofascore.com/api/v1/unique-tournament/${leagueId}/seasons`);
-          if (!seasonsResponse.ok) {
-            throw new Error('Failed to fetch seasons');
-          }
+          // Cache the seasons fetch separately
+          const seasonsCacheKey = `seasons-${leagueId}`;
+          const seasonsData = await ApiCache.getOrFetch(
+            seasonsCacheKey,
+            async () => {
+              const seasonsResponse = await fetch(`https://api.sofascore.com/api/v1/unique-tournament/${leagueId}/seasons`);
+              if (!seasonsResponse.ok) {
+                throw new Error('Failed to fetch seasons');
+              }
+              return await seasonsResponse.json();
+            },
+            ApiCache.DURATIONS.VERY_LONG, // Cache seasons for 24 hours - they rarely change
+            false // Don't use stale-while-revalidate - only fetch when expired
+          );
           
-          const seasonsData = await seasonsResponse.json();
           const currentSeason = seasonsData.seasons[0];
           const seasonId = currentSeason.id;
           
-          const response = await fetch(`https://api.sofascore.com/api/v1/unique-tournament/${leagueId}/season/${seasonId}/top-players/overall`);
-          if (!response.ok) {
-            throw new Error('Failed to fetch top players');
-          }
+          // Cache the top players fetch separately
+          const playersCacheKey = `top-players-data-${leagueId}-${seasonId}`;
+          const playersData = await ApiCache.getOrFetch(
+            playersCacheKey,
+            async () => {
+              const response = await fetch(`https://api.sofascore.com/api/v1/unique-tournament/${leagueId}/season/${seasonId}/top-players/overall`);
+              if (!response.ok) {
+                throw new Error('Failed to fetch top players');
+              }
+              return await response.json();
+            },
+            ApiCache.DURATIONS.LONG, // Cache top players for 1 hour
+            false // Don't use stale-while-revalidate - only fetch when expired
+          );
           
-          const playersData = await response.json();
           return playersData.topPlayers?.goals || [];
         },
-        ApiCache.DURATIONS.MEDIUM, // Cache for 30 minutes
-        true // Use stale-while-revalidate
+        ApiCache.DURATIONS.LONG, // Cache the final result for 1 hour
+        false // Don't use stale-while-revalidate - only fetch when cache expires
       );
       
       setTopPlayers(data.slice(0, 10));
     } catch (error) {
       console.error("Failed to fetch top players:", error);
+      setTopPlayers([]); // Set empty array on error instead of leaving stale data
     } finally {
       setIsLoadingPlayers(false);
     }
@@ -1062,7 +1092,7 @@ export default function DashboardPage() {
                       <Link 
                         key={`${fixture.id}-${index}`} 
                         href={`/auth/match/${fixture.api_id}`}
-                        className="flex-shrink-0 w-[320px]"
+                        className="flex-shrink-0 w-[350px]"
                       >
                         <Card className="cursor-pointer hover:shadow-lg transition-all duration-200 border-l-4 border-l-orange-500 h-full relative overflow-hidden">
                           {/* Animated gradient background */}

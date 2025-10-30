@@ -1,15 +1,132 @@
-// SofaScore API Proxy with browser-like headers to bypass bot detection
+// SofaScore API Proxy with advanced anti-bot detection bypass
 
-// Rotate between different User-Agents to look more natural
-const userAgents = [
-  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36',
-  'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-  'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+// Complete browser header profiles that match real browsers
+interface HeaderProfile {
+  'User-Agent': string;
+  'sec-ch-ua': string;
+  'sec-ch-ua-mobile': string;
+  'sec-ch-ua-platform': string;
+  'Accept': string;
+  'Accept-Language': string;
+  'Accept-Encoding': string;
+  'Connection': string;
+  'Upgrade-Insecure-Requests': string;
+  'Sec-Fetch-Dest': string;
+  'Sec-Fetch-Mode': string;
+  'Sec-Fetch-Site': string;
+  'Sec-Fetch-User': string;
+  'Cache-Control': string;
+  'Pragma': string;
+  'DNT': string;
+  'Referer': string;
+}
+
+// Real browser header profiles - Chrome, Firefox, Safari on different OS
+const headerProfiles: HeaderProfile[] = [
+  // Chrome on Windows
+  {
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+    'sec-ch-ua': '"Not_A Brand";v="8", "Chromium";v="120", "Google Chrome";v="120"',
+    'sec-ch-ua-mobile': '?0',
+    'sec-ch-ua-platform': '"Windows"',
+    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
+    'Accept-Language': 'en-US,en;q=0.9',
+    'Accept-Encoding': 'gzip, deflate, br',
+    'Connection': 'keep-alive',
+    'Upgrade-Insecure-Requests': '1',
+    'Sec-Fetch-Dest': 'document',
+    'Sec-Fetch-Mode': 'navigate',
+    'Sec-Fetch-Site': 'none',
+    'Sec-Fetch-User': '?1',
+    'Cache-Control': 'max-age=0',
+    'Pragma': 'no-cache',
+    'DNT': '1',
+    'Referer': 'https://www.sofascore.com/',
+  },
+  // Firefox on Windows
+  {
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:120.0) Gecko/20100101 Firefox/120.0',
+    'sec-ch-ua': '',
+    'sec-ch-ua-mobile': '',
+    'sec-ch-ua-platform': '',
+    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+    'Accept-Language': 'en-US,en;q=0.5',
+    'Accept-Encoding': 'gzip, deflate, br',
+    'Connection': 'keep-alive',
+    'Upgrade-Insecure-Requests': '1',
+    'Sec-Fetch-Dest': 'document',
+    'Sec-Fetch-Mode': 'navigate',
+    'Sec-Fetch-Site': 'none',
+    'Sec-Fetch-User': '?1',
+    'Cache-Control': 'max-age=0',
+    'Pragma': 'no-cache',
+    'DNT': '1',
+    'Referer': 'https://www.sofascore.com/',
+  },
+  // Chrome on macOS
+  {
+    'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+    'sec-ch-ua': '"Not_A Brand";v="8", "Chromium";v="120", "Google Chrome";v="120"',
+    'sec-ch-ua-mobile': '?0',
+    'sec-ch-ua-platform': '"macOS"',
+    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
+    'Accept-Language': 'en-US,en;q=0.9',
+    'Accept-Encoding': 'gzip, deflate, br',
+    'Connection': 'keep-alive',
+    'Upgrade-Insecure-Requests': '1',
+    'Sec-Fetch-Dest': 'document',
+    'Sec-Fetch-Mode': 'navigate',
+    'Sec-Fetch-Site': 'none',
+    'Sec-Fetch-User': '?1',
+    'Cache-Control': 'max-age=0',
+    'Pragma': 'no-cache',
+    'DNT': '1',
+    'Referer': 'https://www.sofascore.com/',
+  },
+  // Safari on macOS
+  {
+    'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.1 Safari/605.1.15',
+    'sec-ch-ua': '',
+    'sec-ch-ua-mobile': '',
+    'sec-ch-ua-platform': '',
+    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+    'Accept-Language': 'en-US,en;q=0.9',
+    'Accept-Encoding': 'gzip, deflate, br',
+    'Connection': 'keep-alive',
+    'Upgrade-Insecure-Requests': '1',
+    'Sec-Fetch-Dest': 'document',
+    'Sec-Fetch-Mode': 'navigate',
+    'Sec-Fetch-Site': 'none',
+    'Sec-Fetch-User': '',
+    'Cache-Control': 'max-age=0',
+    'Pragma': 'no-cache',
+    'DNT': '',
+    'Referer': 'https://www.sofascore.com/',
+  },
+  // Chrome on Linux
+  {
+    'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+    'sec-ch-ua': '"Not_A Brand";v="8", "Chromium";v="120", "Google Chrome";v="120"',
+    'sec-ch-ua-mobile': '?0',
+    'sec-ch-ua-platform': '"Linux"',
+    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
+    'Accept-Language': 'en-US,en;q=0.9',
+    'Accept-Encoding': 'gzip, deflate, br',
+    'Connection': 'keep-alive',
+    'Upgrade-Insecure-Requests': '1',
+    'Sec-Fetch-Dest': 'document',
+    'Sec-Fetch-Mode': 'navigate',
+    'Sec-Fetch-Site': 'none',
+    'Sec-Fetch-User': '?1',
+    'Cache-Control': 'max-age=0',
+    'Pragma': 'no-cache',
+    'DNT': '1',
+    'Referer': 'https://www.sofascore.com/',
+  },
 ];
 
-function getRandomUserAgent(): string {
-  return userAgents[Math.floor(Math.random() * userAgents.length)];
+function getRandomHeaderProfile(): HeaderProfile {
+  return headerProfiles[Math.floor(Math.random() * headerProfiles.length)];
 }
 
 // Simple delay function
@@ -20,46 +137,83 @@ function delay(ms: number): Promise<void> {
 // Track last request time to add natural delays
 let lastRequestTime = 0;
 
+// Retry configuration
+const MAX_RETRIES = 3;
+const INITIAL_RETRY_DELAY = 1000; // 1 second
+
+// Exponential backoff retry logic
+async function fetchWithRetry(
+  url: string,
+  options: RequestInit,
+  retryCount = 0
+): Promise<Response> {
+  try {
+    const response = await fetch(url, options);
+    
+    // If we get rate limited (429) or server error (5xx), retry
+    if ((response.status === 429 || response.status >= 500) && retryCount < MAX_RETRIES) {
+      const retryDelay = INITIAL_RETRY_DELAY * Math.pow(2, retryCount);
+      console.log(`Request failed with status ${response.status}, retrying in ${retryDelay}ms (attempt ${retryCount + 1}/${MAX_RETRIES})`);
+      await delay(retryDelay);
+      return fetchWithRetry(url, options, retryCount + 1);
+    }
+    
+    return response;
+  } catch (error) {
+    if (retryCount < MAX_RETRIES) {
+      const retryDelay = INITIAL_RETRY_DELAY * Math.pow(2, retryCount);
+      console.log(`Request failed with error, retrying in ${retryDelay}ms (attempt ${retryCount + 1}/${MAX_RETRIES})`);
+      await delay(retryDelay);
+      return fetchWithRetry(url, options, retryCount + 1);
+    }
+    throw error;
+  }
+}
+
 export async function fetchFromSofaScore(endpoint: string, options?: RequestInit) {
   const baseUrl = 'https://www.sofascore.com/api/v1';
   const url = `${baseUrl}${endpoint}`;
 
-  // Add a small random delay between requests (100-300ms) to look more human
+  // Add a small random delay between requests (100-500ms) to look more human
   const now = Date.now();
   const timeSinceLastRequest = now - lastRequestTime;
-  if (timeSinceLastRequest < 100) {
-    const randomDelay = Math.floor(Math.random() * 200) + 100;
+  if (timeSinceLastRequest < 200) {
+    const randomDelay = Math.floor(Math.random() * 400) + 100;
     await delay(randomDelay);
   }
   lastRequestTime = Date.now();
 
-  // Simulate a real browser request with all the headers
-  const headers = {
-    'Accept': '*/*',
-    'Accept-Encoding': 'gzip, deflate, br',
-    'Accept-Language': 'en-US,en;q=0.9,pl;q=0.8',
-    'Cache-Control': 'max-age=0',
-    'Connection': 'keep-alive',
-    'DNT': '1',
-    'Host': 'www.sofascore.com',
-    'Referer': 'https://www.sofascore.com/',
-    'Sec-Fetch-Dest': 'empty',
-    'Sec-Fetch-Mode': 'cors',
-    'Sec-Fetch-Site': 'same-origin',
-    'User-Agent': getRandomUserAgent(),
-    'sec-ch-ua': '"Not_A Brand";v="8", "Chromium";v="120", "Google Chrome";v="120"',
-    'sec-ch-ua-mobile': '?0',
-    'sec-ch-ua-platform': '"Windows"',
-    'X-Requested-With': 'XMLHttpRequest',
-    ...options?.headers,
-  };
+  // Use our advanced header spoofing
+  console.log(`Fetching ${endpoint} directly with header spoofing`);
+  
+  // Get a random complete header profile
+  const headerProfile = getRandomHeaderProfile();
+  
+  // Build headers object, removing empty values (for Safari/Firefox compatibility)
+  const headers: Record<string, string> = {};
+  Object.entries(headerProfile).forEach(([key, value]) => {
+    if (value) {
+      headers[key] = value;
+    }
+  });
+
+  // Add Host header separately
+  headers['Host'] = 'www.sofascore.com';
+
+  // Merge with any custom headers from options
+  if (options?.headers) {
+    Object.assign(headers, options.headers);
+  }
 
   try {
-    const response = await fetch(url, {
+    const response = await fetchWithRetry(url, {
       ...options,
       headers,
-      // Don't use Next.js cache on server side if it's causing issues
+      // Force no cache to avoid stale data
       cache: 'no-store',
+      // Add these to make it look more like a browser
+      redirect: 'follow',
+      referrerPolicy: 'strict-origin-when-cross-origin',
     });
 
     if (!response.ok) {
@@ -67,11 +221,17 @@ export async function fetchFromSofaScore(endpoint: string, options?: RequestInit
         url,
         status: response.status,
         statusText: response.statusText,
+        headers: Object.fromEntries(response.headers.entries()),
       });
       
       // Log response body for debugging
       const text = await response.text();
       console.error('Response body:', text.substring(0, 500));
+      
+      // If we get 403, log the headers we used for debugging
+      if (response.status === 403) {
+        console.error('Request headers that failed:', headers);
+      }
       
       throw new Error(`SofaScore API error: ${response.status} ${response.statusText}`);
     }

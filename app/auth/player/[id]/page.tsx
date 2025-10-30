@@ -94,7 +94,7 @@ export default function PlayerPage() {
           }));
         },
         ApiCache.DURATIONS.SHORT,
-        true
+        false // Don't use stale-while-revalidate - only refresh when expired
       );
       setLiveMatches(matches);
     } catch (err) {
@@ -115,7 +115,7 @@ export default function PlayerPage() {
           return await playerResponse.json();
         },
         ApiCache.DURATIONS.MEDIUM,
-        true
+        false // Don't use stale-while-revalidate - only refresh when expired
       );
       
       if (!playerData || !playerData.player) {
@@ -147,51 +147,79 @@ export default function PlayerPage() {
 
       // Fetch player statistics if available
       try {
-        // Try to get the latest season statistics
-        const statsResponse = await fetch(`https://api.sofascore.com/api/v1/player/${params.id}/statistics/seasons`);
-        if (statsResponse.ok) {
-          const statsData = await statsResponse.json();
-          console.log("Player statistics data:", statsData);
-          
-          // Get the most recent unique tournament statistics
-          if (statsData.uniqueTournamentSeasons && statsData.uniqueTournamentSeasons.length > 0) {
-            const latestTournament = statsData.uniqueTournamentSeasons[0];
-            
-            // Fetch detailed statistics for this season
-            const detailStatsResponse = await fetch(
-              `https://api.sofascore.com/api/v1/player/${params.id}/unique-tournament/${latestTournament.uniqueTournament.id}/season/${latestTournament.seasons[0].id}/statistics/overall`
-            );
-            
-            if (detailStatsResponse.ok) {
-              const detailStats = await detailStatsResponse.json();
-              console.log("Detailed player statistics:", detailStats);
-              
-              const stats = detailStats.statistics;
-              setStats({
-                goals: stats?.goals,
-                assists: stats?.assists,
-                yellowCards: stats?.yellowCards,
-                redCards: stats?.redCards,
-                appearances: stats?.appearances,
-                rating: stats?.rating,
-                minutesPlayed: stats?.minutesPlayed,
-                goalsPer90: stats?.goalsPer90,
-                successfulDribbles: stats?.successfulDribbles,
-                successfulDribblesPercentage: stats?.successfulDribblesPercentage,
-                totalShots: stats?.shotsTotal,
-                shotsOnTarget: stats?.shotsOnTarget,
-                accuratePasses: stats?.accuratePasses,
-                totalPasses: stats?.totalPasses,
-                accuratePassesPercentage: stats?.accuratePassesPercentage,
-                tackles: stats?.tackles,
-                interceptions: stats?.interceptions,
-                duelsWon: stats?.duelsWon,
-                duelsWonPercentage: stats?.duelsWonPercentage,
-                aerialDuelsWon: stats?.aerialDuelsWon,
-                aerialDuelsWonPercentage: stats?.aerialDuelsWonPercentage,
-              });
+        const statsCacheKey = `player-stats-${params.id}`;
+        
+        const playerStats = await ApiCache.getOrFetch(
+          statsCacheKey,
+          async () => {
+            // Try to get the latest season statistics
+            const statsResponse = await fetch(`https://api.sofascore.com/api/v1/player/${params.id}/statistics/seasons`);
+            if (!statsResponse.ok) {
+              throw new Error('Failed to fetch statistics');
             }
-          }
+            
+            const statsData = await statsResponse.json();
+            console.log("Player statistics data:", statsData);
+            
+            // Get the most recent unique tournament statistics
+            if (statsData.uniqueTournamentSeasons && statsData.uniqueTournamentSeasons.length > 0) {
+              const latestTournament = statsData.uniqueTournamentSeasons[0];
+              
+              // Cache detailed stats separately
+              const detailStatsCacheKey = `player-detail-stats-${params.id}-${latestTournament.uniqueTournament.id}-${latestTournament.seasons[0].id}`;
+              
+              const detailStats = await ApiCache.getOrFetch(
+                detailStatsCacheKey,
+                async () => {
+                  // Fetch detailed statistics for this season
+                  const detailStatsResponse = await fetch(
+                    `https://api.sofascore.com/api/v1/player/${params.id}/unique-tournament/${latestTournament.uniqueTournament.id}/season/${latestTournament.seasons[0].id}/statistics/overall`
+                  );
+                  
+                  if (!detailStatsResponse.ok) {
+                    throw new Error('Failed to fetch detailed stats');
+                  }
+                  
+                  return await detailStatsResponse.json();
+                },
+                ApiCache.DURATIONS.LONG, // Cache for 1 hour
+                false // Don't use stale-while-revalidate
+              );
+              
+              return detailStats;
+            }
+            
+            return null;
+          },
+          ApiCache.DURATIONS.LONG, // Cache for 1 hour
+          false // Don't use stale-while-revalidate
+        );
+        
+        if (playerStats && playerStats.statistics) {
+          const stats = playerStats.statistics;
+          setStats({
+            goals: stats?.goals,
+            assists: stats?.assists,
+            yellowCards: stats?.yellowCards,
+            redCards: stats?.redCards,
+            appearances: stats?.appearances,
+            rating: stats?.rating,
+            minutesPlayed: stats?.minutesPlayed,
+            goalsPer90: stats?.goalsPer90,
+            successfulDribbles: stats?.successfulDribbles,
+            successfulDribblesPercentage: stats?.successfulDribblesPercentage,
+            totalShots: stats?.shotsTotal,
+            shotsOnTarget: stats?.shotsOnTarget,
+            accuratePasses: stats?.accuratePasses,
+            totalPasses: stats?.totalPasses,
+            accuratePassesPercentage: stats?.accuratePassesPercentage,
+            tackles: stats?.tackles,
+            interceptions: stats?.interceptions,
+            duelsWon: stats?.duelsWon,
+            duelsWonPercentage: stats?.duelsWonPercentage,
+            aerialDuelsWon: stats?.aerialDuelsWon,
+            aerialDuelsWonPercentage: stats?.aerialDuelsWonPercentage,
+          });
         }
       } catch (statsError) {
         console.error("Failed to fetch player stats:", statsError);

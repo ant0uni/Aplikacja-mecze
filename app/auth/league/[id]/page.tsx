@@ -110,8 +110,8 @@ export default function LeaguePage() {
           if (!response.ok) throw new Error('Failed to fetch seasons');
           return await response.json();
         },
-        ApiCache.DURATIONS.LONG,
-        true
+        ApiCache.DURATIONS.VERY_LONG, // Cache for 24 hours - seasons rarely change
+        false // Don't use stale-while-revalidate
       );
       
       const currentSeason = seasonsData.seasons[0]; // Most recent season
@@ -129,8 +129,8 @@ export default function LeaguePage() {
           if (!response.ok) throw new Error('Failed to fetch standings');
           return await response.json();
         },
-        ApiCache.DURATIONS.LONG,
-        true
+        ApiCache.DURATIONS.LONG, // Cache for 1 hour
+        false // Don't use stale-while-revalidate
       );
       
       console.log("Standings data:", data);
@@ -187,8 +187,8 @@ export default function LeaguePage() {
               state: event.status?.description || event.status?.type || 'Unknown',
             }));
         },
-        ApiCache.DURATIONS.SHORT,
-        true
+        ApiCache.DURATIONS.SHORT, // Cache for 2 minutes
+        false // Don't use stale-while-revalidate
       );
       setUpcomingMatches(matches);
     } catch (error) {
@@ -208,8 +208,8 @@ export default function LeaguePage() {
           const data = await response.json();
           return (data.topPlayers?.goals || []).slice(0, 3);
         },
-        ApiCache.DURATIONS.MEDIUM,
-        true
+        ApiCache.DURATIONS.LONG, // Cache for 1 hour
+        false // Don't use stale-while-revalidate
       );
       setTopScorers(scorers);
     } catch (error) {
