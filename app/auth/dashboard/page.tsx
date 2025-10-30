@@ -6,14 +6,18 @@ import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Coins, LogOut, Plus, Loader2, Filter, User, Calendar, X, TrendingUp, Trophy } from "lucide-react";
+import { Coins, LogOut, Loader2, User, Calendar, X, Trophy } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { PredictionDialog } from "@/components/prediction-dialog";
+import { ExitIntentPopup } from "@/components/exit-intent-popup";
+import { LiveMatchesCarousel } from "@/components/live-matches-carousel";
 import Image from "next/image";
+import { toast } from "sonner";
+import { ApiCache } from "@/lib/cache";
 
 // Memoized Fixture Card Component for performance
 const FixtureCard = React.memo(({ 
@@ -32,9 +36,9 @@ const FixtureCard = React.memo(({
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        whileHover={{ scale: 1.02, y: -4 }}
-        transition={{ duration: 0.2 }}
-        className={`border rounded-lg p-4 hover:shadow-lg hover:bg-muted/50 transition-all duration-200 cursor-pointer ${
+        whileHover={{ scale: 1.01, y: -1 }}
+        transition={{ duration: 0.15, type: "spring", stiffness: 400, damping: 25 }}
+        className={`border rounded-lg p-4 hover:shadow-lg hover:bg-muted/50 transition-shadow duration-150 cursor-pointer will-change-transform ${
           fixture.isPopular ? 'border-l-4 border-l-orange-500' : ''
         }`}
       >
@@ -55,7 +59,7 @@ const FixtureCard = React.memo(({
               {fixture.country_name && (
                 <Badge 
                   variant="default" 
-                  className="text-xs cursor-pointer hover:opacity-80 transition-opacity"
+                  className="text-xs cursor-pointer hover:opacity-80 transition-opacity flex items-center gap-1"
                   onClick={(e) => {
                     e.preventDefault();
                     e.stopPropagation();
@@ -63,7 +67,18 @@ const FixtureCard = React.memo(({
                   }}
                   title="Click to filter by this country"
                 >
-                  🌍 {fixture.country_name}
+                  {getCountryFlagUrl(fixture.country_name) && (
+                    <img 
+                      src={getCountryFlagUrl(fixture.country_name)} 
+                      alt={fixture.country_name}
+                      className="w-4 h-3 object-cover"
+                      onError={(e) => {
+                        const target = e.target as HTMLImageElement;
+                        target.style.display = 'none';
+                      }}
+                    />
+                  )}
+                  <span>{getCountryCode(fixture.country_name)}</span>
                 </Badge>
               )}
               {fixture.league_name && fixture.league_id && (
@@ -114,13 +129,24 @@ const FixtureCard = React.memo(({
               )}
             </div>
             <div className="flex items-center gap-2">
+              {/* Time in top right */}
+              {fixture.home_score === null && fixture.away_score === null && (
+                <div className="text-sm font-semibold text-muted-foreground">
+                  {new Date(fixture.starting_at).toLocaleTimeString([], { 
+                    hour: '2-digit', 
+                    minute: '2-digit' 
+                  })}
+                </div>
+              )}
+              {/* Date without year */}
               <div className="flex items-center gap-1 text-xs text-muted-foreground">
                 <Calendar className="h-3 w-3" />
-                {new Date(fixture.starting_at).toLocaleDateString()}
+                {new Date(fixture.starting_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
               </div>
               {isMatchActive(fixture) && (
                 <Button
                   size="sm"
+                  className="bg-gradient-to-r from-yellow-400 to-yellow-600 hover:from-yellow-500 hover:to-yellow-700 text-white font-bold shadow-lg hover:shadow-[0_0_20px_rgba(234,179,8,0.6)] transition-all duration-150"
                   onClick={(e) => {
                     e.preventDefault();
                     onPredictClick(fixture);
@@ -165,11 +191,8 @@ const FixtureCard = React.memo(({
                   {fixture.home_score}:{fixture.away_score}
                 </div>
               ) : (
-                <div className="text-lg font-semibold text-muted-foreground">
-                  {new Date(fixture.starting_at).toLocaleTimeString([], { 
-                    hour: '2-digit', 
-                    minute: '2-digit' 
-                  })}
+                <div className="text-xl font-semibold text-muted-foreground">
+                  VS
                 </div>
               )}
             </div>
@@ -199,22 +222,15 @@ const FixtureCard = React.memo(({
             </div>
           </div>
 
-          {/* Venue */}
-          <div className="flex items-center justify-between pt-2 border-t">
-            {fixture.venue_name ? (
+          {/* Venue - no border */}
+          {fixture.venue_name && (
+            <div className="pt-1">
               <p className="text-xs text-muted-foreground flex items-center gap-1">
                 <span>📍</span>
                 {fixture.venue_name}
               </p>
-            ) : (
-              <div className="text-xs text-muted-foreground">
-                {new Date(fixture.starting_at).toLocaleTimeString([], { 
-                  hour: '2-digit', 
-                  minute: '2-digit' 
-                })}
-              </div>
-            )}
-          </div>
+            </div>
+          )}
         </div>
       </motion.div>
     </Link>
@@ -222,6 +238,175 @@ const FixtureCard = React.memo(({
 });
 
 FixtureCard.displayName = 'FixtureCard';
+
+// Helper function to get country flag image URL from flagcdn.com
+const getCountryFlagUrl = (countryName: string): string => {
+  const countryCodeMap: { [key: string]: string } = {
+    'England': 'gb-eng',
+    'Spain': 'es',
+    'Italy': 'it',
+    'Germany': 'de',
+    'France': 'fr',
+    'Poland': 'pl',
+    'Portugal': 'pt',
+    'Netherlands': 'nl',
+    'Belgium': 'be',
+    'Turkey': 'tr',
+    'Brazil': 'br',
+    'Argentina': 'ar',
+    'USA': 'us',
+    'Mexico': 'mx',
+    'Scotland': 'gb-sct',
+    'Wales': 'gb-wls',
+    'Austria': 'at',
+    'Switzerland': 'ch',
+    'Sweden': 'se',
+    'Norway': 'no',
+    'Denmark': 'dk',
+    'Greece': 'gr',
+    'Russia': 'ru',
+    'Ukraine': 'ua',
+    'Croatia': 'hr',
+    'Serbia': 'rs',
+    'Czech Republic': 'cz',
+    'Romania': 'ro',
+    'Hungary': 'hu',
+    'Japan': 'jp',
+    'South Korea': 'kr',
+    'Australia': 'au',
+    'Canada': 'ca',
+    'Chile': 'cl',
+    'Colombia': 'co',
+    'Uruguay': 'uy',
+    'Ecuador': 'ec',
+    'Peru': 'pe',
+    'Venezuela': 've',
+    'Paraguay': 'py',
+    'Bolivia': 'bo',
+    'Costa Rica': 'cr',
+    'Panama': 'pa',
+    'Jamaica': 'jm',
+    'Honduras': 'hn',
+    'El Salvador': 'sv',
+    'Guatemala': 'gt',
+    'Trinidad and Tobago': 'tt',
+    'South Africa': 'za',
+    'Nigeria': 'ng',
+    'Egypt': 'eg',
+    'Morocco': 'ma',
+    'Algeria': 'dz',
+    'Tunisia': 'tn',
+    'Senegal': 'sn',
+    'Ghana': 'gh',
+    'Cameroon': 'cm',
+    'Ivory Coast': 'ci',
+    'Mali': 'ml',
+    'Burkina Faso': 'bf',
+    'Saudi Arabia': 'sa',
+    'Iran': 'ir',
+    'Iraq': 'iq',
+    'United Arab Emirates': 'ae',
+    'Qatar': 'qa',
+    'Kuwait': 'kw',
+    'Bahrain': 'bh',
+    'Oman': 'om',
+    'Jordan': 'jo',
+    'Lebanon': 'lb',
+    'Palestine': 'ps',
+    'Syria': 'sy',
+    'Yemen': 'ye',
+    'China': 'cn',
+    'India': 'in',
+    'Indonesia': 'id',
+    'Thailand': 'th',
+    'Vietnam': 'vn',
+    'Malaysia': 'my',
+    'Singapore': 'sg',
+    'Philippines': 'ph',
+    'Pakistan': 'pk',
+    'Bangladesh': 'bd',
+    'Sri Lanka': 'lk',
+    'Afghanistan': 'af',
+    'Uzbekistan': 'uz',
+    'Kazakhstan': 'kz',
+    'Kyrgyzstan': 'kg',
+    'Tajikistan': 'tj',
+    'Turkmenistan': 'tm',
+    'Azerbaijan': 'az',
+    'Armenia': 'am',
+    'Georgia': 'ge',
+    'Bosnia and Herzegovina': 'ba',
+    'North Macedonia': 'mk',
+    'Albania': 'al',
+    'Montenegro': 'me',
+    'Slovenia': 'si',
+    'Slovakia': 'sk',
+    'Bulgaria': 'bg',
+    'Finland': 'fi',
+    'Iceland': 'is',
+    'Estonia': 'ee',
+    'Latvia': 'lv',
+    'Lithuania': 'lt',
+    'Belarus': 'by',
+    'Moldova': 'md',
+    'Kosovo': 'xk',
+    'Cyprus': 'cy',
+    'Malta': 'mt',
+    'Luxembourg': 'lu',
+    'Andorra': 'ad',
+    'Monaco': 'mc',
+    'San Marino': 'sm',
+    'Liechtenstein': 'li',
+    'Faroe Islands': 'fo',
+    'Gibraltar': 'gi',
+    'Northern Ireland': 'gb-nir',
+    'Republic of Ireland': 'ie',
+    'Ireland': 'ie',
+  };
+  
+  const code = countryCodeMap[countryName];
+  return code ? `https://flagcdn.com/w40/${code}.png` : '';
+};
+
+// Get country code for display
+const getCountryCode = (countryName: string): string => {
+  const codeMap: { [key: string]: string } = {
+    'England': 'ENG',
+    'Spain': 'ESP',
+    'Italy': 'ITA',
+    'Germany': 'GER',
+    'France': 'FRA',
+    'Poland': 'POL',
+    'Portugal': 'POR',
+    'Netherlands': 'NED',
+    'Belgium': 'BEL',
+    'Turkey': 'TUR',
+    'Brazil': 'BRA',
+    'Argentina': 'ARG',
+    'USA': 'USA',
+    'Mexico': 'MEX',
+    'Scotland': 'SCO',
+    'Wales': 'WAL',
+    'Austria': 'AUT',
+    'Switzerland': 'SUI',
+    'Sweden': 'SWE',
+    'Norway': 'NOR',
+    'Denmark': 'DEN',
+    'Greece': 'GRE',
+    'Russia': 'RUS',
+    'Ukraine': 'UKR',
+    'Croatia': 'CRO',
+    'Serbia': 'SRB',
+    'Czech Republic': 'CZE',
+    'Romania': 'ROU',
+    'Hungary': 'HUN',
+    'Japan': 'JPN',
+    'South Korea': 'KOR',
+    'Australia': 'AUS',
+    'Canada': 'CAN',
+  };
+  return codeMap[countryName] || countryName.substring(0, 3).toUpperCase();
+};
 
 interface User {
   id: number;
@@ -281,14 +466,30 @@ export default function DashboardPage() {
   const [showFilters, setShowFilters] = useState(false);
   const [showPredictableOnly, setShowPredictableOnly] = useState(false);
   const [searchTeam, setSearchTeam] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [activeFixtureFilter, setActiveFixtureFilter] = useState<"upcoming" | "latest" | "started" | null>("upcoming");
   
   // Popular matches data
   const [popularMatches, setPopularMatches] = useState<Fixture[]>([]);
   const [allMatches, setAllMatches] = useState<Fixture[]>([]);
   
+  // Live matches for carousel
+  const [liveMatches, setLiveMatches] = useState<any[]>([]);
+  
   // Top players data
   const [topPlayers, setTopPlayers] = useState<any[]>([]);
   const [isLoadingPlayers, setIsLoadingPlayers] = useState(false);
+  const [currentLeagueIndex, setCurrentLeagueIndex] = useState(0);
+  const [isPaused, setIsPaused] = useState(false);
+  
+  // League rotation configuration
+  const topLeagues = [
+    { id: 17, name: "PREMIER LEAGUE", country: "England" },
+    { id: 8, name: "LA LIGA", country: "Spain" },
+    { id: 23, name: "SERIE A", country: "Italy" },
+    { id: 35, name: "BUNDESLIGA", country: "Germany" },
+    { id: 34, name: "LIGUE 1", country: "France" }
+  ];
   
   // Infinite scroll
   const [displayedFixtures, setDisplayedFixtures] = useState<Fixture[]>([]);
@@ -373,8 +574,8 @@ export default function DashboardPage() {
     }
     
     // Apply team search filter
-    if (searchTeam) {
-      const searchLower = searchTeam.toLowerCase();
+    if (debouncedSearch) {
+      const searchLower = debouncedSearch.toLowerCase();
       filtered = filtered.filter((fixture) => 
         fixture.home_team_name?.toLowerCase().includes(searchLower) ||
         fixture.away_team_name?.toLowerCase().includes(searchLower)
@@ -411,7 +612,7 @@ export default function DashboardPage() {
     });
     
     return filtered;
-  }, [allMatches, selectedCountries, selectedLeagues, dateTo, showPredictableOnly, searchTeam, sortBy, order, selectedRegion]);
+  }, [allMatches, selectedCountries, selectedLeagues, dateTo, showPredictableOnly, debouncedSearch, sortBy, order, selectedRegion]);
 
   // Update fixtures when filtered results change and reset pagination
   useEffect(() => {
@@ -456,8 +657,31 @@ export default function DashboardPage() {
     fetchUser();
     fetchPopularMatches();
     fetchFixtures();
-    fetchTopPlayers();
+    fetchTopPlayers(topLeagues[0].id);
   }, []);
+
+  // Debounce search input for performance
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchTeam);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchTeam]);
+
+  // Auto-rotate top players every 3.5 seconds
+  useEffect(() => {
+    if (isPaused) return;
+
+    const interval = setInterval(() => {
+      setCurrentLeagueIndex((prev) => {
+        const nextIndex = (prev + 1) % topLeagues.length;
+        fetchTopPlayers(topLeagues[nextIndex].id);
+        return nextIndex;
+      });
+    }, 3500);
+
+    return () => clearInterval(interval);
+  }, [isPaused]);
 
   // Refresh data when date changes
   useEffect(() => {
@@ -485,41 +709,65 @@ export default function DashboardPage() {
 
   const fetchPopularMatches = useCallback(async () => {
     try {
-      // Fetch live events from SofaScore (these are typically the most popular/trending)
-      const response = await fetch('https://www.sofascore.com/api/v1/sport/football/events/live');
-      if (response.ok) {
-        const data = await response.json();
-        const events = data.events || [];
-        
-        // Transform live events to fixture format (these are trending/popular)
-        const transformedEvents = events.slice(0, 10).map((event: any) => ({
-          id: event.id,
-          api_id: event.id,
-          name: `${event.homeTeam?.name || 'Home'} - ${event.awayTeam?.name || 'Away'}`,
-          starting_at: new Date(event.startTimestamp * 1000).toISOString(),
-          result_info: event.slug || null,
-          state_id: event.status?.code || 0,
-          state_name: event.status?.description || event.status?.type || null,
-          home_team_id: event.homeTeam?.id || null,
-          home_team_name: event.homeTeam?.name || null,
-          home_team_logo: event.homeTeam?.id ? `https://api.sofascore.com/api/v1/team/${event.homeTeam.id}/image` : null,
-          away_team_id: event.awayTeam?.id || null,
-          away_team_name: event.awayTeam?.name || null,
-          away_team_logo: event.awayTeam?.id ? `https://api.sofascore.com/api/v1/team/${event.awayTeam.id}/image` : null,
-          home_score: event.homeScore?.current ?? event.homeScore?.display ?? null,
-          away_score: event.awayScore?.current ?? event.awayScore?.display ?? null,
-          league_id: event.tournament?.uniqueTournament?.id || event.tournament?.id || null,
-          league_name: event.tournament?.uniqueTournament?.name || event.tournament?.name || null,
-          country_name: event.tournament?.category?.name || null,
-          has_standings: event.tournament?.uniqueTournament?.hasStandingsGroups || false,
-          has_top_scorers: event.tournament?.uniqueTournament?.hasEventPlayerStatistics || false,
-          venue_id: null,
-          venue_name: null,
-          isPopular: true
-        }));
-        
-        setPopularMatches(transformedEvents);
-      }
+      const cacheKey = 'popular-matches';
+      
+      const transformedEvents = await ApiCache.getOrFetch(
+        cacheKey,
+        async () => {
+          // Fetch live events from SofaScore (these are typically the most popular/trending)
+          const response = await fetch('https://www.sofascore.com/api/v1/sport/football/events/live');
+          if (!response.ok) {
+            throw new Error('Failed to fetch live events');
+          }
+          
+          const data = await response.json();
+          const events = data.events || [];
+          
+          // Transform live events to fixture format (these are trending/popular)
+          return events.slice(0, 10).map((event: any) => ({
+            id: event.id,
+            api_id: event.id,
+            name: `${event.homeTeam?.name || 'Home'} - ${event.awayTeam?.name || 'Away'}`,
+            starting_at: new Date(event.startTimestamp * 1000).toISOString(),
+            result_info: event.slug || null,
+            state_id: event.status?.code || 0,
+            state_name: event.status?.description || event.status?.type || null,
+            home_team_id: event.homeTeam?.id || null,
+            home_team_name: event.homeTeam?.name || null,
+            home_team_logo: event.homeTeam?.id ? `https://api.sofascore.com/api/v1/team/${event.homeTeam.id}/image` : null,
+            away_team_id: event.awayTeam?.id || null,
+            away_team_name: event.awayTeam?.name || null,
+            away_team_logo: event.awayTeam?.id ? `https://api.sofascore.com/api/v1/team/${event.awayTeam.id}/image` : null,
+            home_score: event.homeScore?.current ?? event.homeScore?.display ?? null,
+            away_score: event.awayScore?.current ?? event.awayScore?.display ?? null,
+            league_id: event.tournament?.uniqueTournament?.id || event.tournament?.id || null,
+            league_name: event.tournament?.uniqueTournament?.name || event.tournament?.name || null,
+            country_name: event.tournament?.category?.name || null,
+            has_standings: event.tournament?.uniqueTournament?.hasStandingsGroups || false,
+            has_top_scorers: event.tournament?.uniqueTournament?.hasEventPlayerStatistics || false,
+            venue_id: null,
+            venue_name: null,
+            isPopular: true
+          }));
+        },
+        ApiCache.DURATIONS.SHORT, // Cache for 5 minutes (live data changes frequently)
+        true // Use stale-while-revalidate for instant UI
+      );
+      
+      setPopularMatches(transformedEvents);
+      
+      // Also set live matches for carousel with logos
+      const liveMatchesData = transformedEvents.map((event: any) => ({
+        id: event.api_id,
+        home_team_name: event.home_team_name || 'Home',
+        away_team_name: event.away_team_name || 'Away',
+        home_team_logo: event.home_team_logo,
+        away_team_logo: event.away_team_logo,
+        home_score: event.home_score,
+        away_score: event.away_score,
+        league_name: event.league_name || 'Unknown League',
+      }));
+      setLiveMatches(liveMatchesData);
     } catch (error) {
       console.error("Failed to fetch popular matches:", error);
     }
@@ -639,28 +887,36 @@ export default function DashboardPage() {
     }
   };
 
-  const fetchTopPlayers = async () => {
+  const fetchTopPlayers = async (leagueId: number) => {
     setIsLoadingPlayers(true);
     try {
-      // Fetch popular players from Premier League (most popular league)
-      const leagueId = 17; // Premier League
+      const cacheKey = `top-players-${leagueId}`;
       
-      const seasonsResponse = await fetch(`https://api.sofascore.com/api/v1/unique-tournament/${leagueId}/seasons`);
-      if (!seasonsResponse.ok) {
-        setIsLoadingPlayers(false);
-        return;
-      }
+      const data = await ApiCache.getOrFetch(
+        cacheKey,
+        async () => {
+          const seasonsResponse = await fetch(`https://api.sofascore.com/api/v1/unique-tournament/${leagueId}/seasons`);
+          if (!seasonsResponse.ok) {
+            throw new Error('Failed to fetch seasons');
+          }
+          
+          const seasonsData = await seasonsResponse.json();
+          const currentSeason = seasonsData.seasons[0];
+          const seasonId = currentSeason.id;
+          
+          const response = await fetch(`https://api.sofascore.com/api/v1/unique-tournament/${leagueId}/season/${seasonId}/top-players/overall`);
+          if (!response.ok) {
+            throw new Error('Failed to fetch top players');
+          }
+          
+          const playersData = await response.json();
+          return playersData.topPlayers?.goals || [];
+        },
+        ApiCache.DURATIONS.MEDIUM, // Cache for 30 minutes
+        true // Use stale-while-revalidate
+      );
       
-      const seasonsData = await seasonsResponse.json();
-      const currentSeason = seasonsData.seasons[0];
-      const seasonId = currentSeason.id;
-      
-      const response = await fetch(`https://api.sofascore.com/api/v1/unique-tournament/${leagueId}/season/${seasonId}/top-players/overall`);
-      if (response.ok) {
-        const data = await response.json();
-        const topScorers = data.topPlayers?.goals || [];
-        setTopPlayers(topScorers.slice(0, 10));
-      }
+      setTopPlayers(data.slice(0, 10));
     } catch (error) {
       console.error("Failed to fetch top players:", error);
     } finally {
@@ -683,7 +939,7 @@ export default function DashboardPage() {
     const amount = parseInt(coinsToAdd);
 
     if (isNaN(amount) || amount <= 0) {
-      alert("Please enter a valid amount");
+      toast.error("Please enter a valid amount");
       return;
     }
 
@@ -699,13 +955,13 @@ export default function DashboardPage() {
         const data = await response.json();
         setUser(data.user);
         setCoinsToAdd("");
-        alert(`${amount} coins added successfully!`);
+        toast.success(`💰 ${amount} coins added successfully!`);
       } else {
         throw new Error("Failed to add coins");
       }
     } catch (error) {
       console.error("Failed to add coins:", error);
-      alert("Failed to add coins");
+      toast.error("Failed to add coins");
     } finally {
       setIsAddingCoins(false);
     }
@@ -728,7 +984,7 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="min-h-screen bg-background p-4 md:p-8">
+    <div className="min-h-screen football-bg p-4 md:p-8">
       <div className="max-w-7xl mx-auto space-y-6">
         {/* Header */}
         <motion.div
@@ -742,17 +998,17 @@ export default function DashboardPage() {
               initial={{ opacity: 0, x: -20 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ delay: 0.2, duration: 0.5 }}
-              className="text-3xl font-bold"
+              className="text-4xl font-black italic dashboard-title"
             >
-              ⚽ Football Predictions
+              COIN KICKER
             </motion.h1>
             <motion.p
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ delay: 0.3, duration: 0.5 }}
-              className="text-muted-foreground"
+              className="text-muted-foreground mt-1"
             >
-              Welcome back, {user?.email}
+              Welcome to the game, {user?.email}
             </motion.p>
           </div>
           <motion.div
@@ -762,102 +1018,237 @@ export default function DashboardPage() {
             className="flex gap-2 items-center"
           >
             <div className="flex items-center gap-2">
-              <Label htmlFor="region-select" className="text-sm font-medium">
-                Region:
-              </Label>
               <Select value={selectedRegion} onValueChange={(value: "poland" | "europe" | "world") => setSelectedRegion(value)}>
                 <SelectTrigger className="w-[140px]">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="poland">🇵🇱 Poland</SelectItem>
-                  <SelectItem value="europe">🇪🇺 Europe</SelectItem>
-                  <SelectItem value="world">🌍 World</SelectItem>
+                  <SelectItem value="poland">Poland</SelectItem>
+                  <SelectItem value="europe">Europe</SelectItem>
+                  <SelectItem value="world">World</SelectItem>
                 </SelectContent>
               </Select>
             </div>
-            <ThemeToggle />
+            <div className="flex items-center gap-2 px-3 py-2 rounded-md border bg-card">
+              <Coins className="h-4 w-4 text-yellow-500" />
+              <span className="text-sm font-bold">{user?.coins || 0}</span>
+            </div>
             <Link href="/profile">
-              <Button variant="outline">
-                <User className="mr-2 h-4 w-4" />
-                Profile
+              <Button variant="outline" size="icon" title="Profile">
+                <User className="h-5 w-5" />
               </Button>
             </Link>
-            <Button onClick={handleLogout} variant="outline">
-              <LogOut className="mr-2 h-4 w-4" />
-              Logout
-            </Button>
           </motion.div>
         </motion.div>
 
-        {/* Coins Card */}
-        <motion.div
-          initial={{ opacity: 0, scale: 0.95 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ delay: 0.3, duration: 0.5 }}
-        >
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <motion.div
-                  animate={{ rotate: [0, 15, -15, 0] }}
-                  transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
-                >
-                  <Coins className="h-5 w-5 text-yellow-500" />
-                </motion.div>
-                Your Coins: <motion.span
-                  key={user?.coins}
-                  initial={{ scale: 1.5, color: "#fbbf24" }}
-                  animate={{ scale: 1, color: "inherit" }}
-                  transition={{ duration: 0.5 }}
-                >
-                  {user?.coins || 0}
-                </motion.span>
-              </CardTitle>
-            </CardHeader>
-          <CardContent>
-            <form onSubmit={handleAddCoins} className="flex gap-2">
-              <div className="flex-1">
-                <Label htmlFor="coins" className="sr-only">
-                  Add Coins
-                </Label>
-                <Input
-                  id="coins"
-                  type="number"
-                  placeholder="Enter amount to add"
-                  value={coinsToAdd}
-                  onChange={(e) => setCoinsToAdd(e.target.value)}
-                  disabled={isAddingCoins}
-                  min="1"
-                />
-              </div>
-              <Button type="submit" disabled={isAddingCoins}>
-                {isAddingCoins ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                ) : (
-                  <Plus className="mr-2 h-4 w-4" />
-                )}
-                Add Coins
-              </Button>
-            </form>
-            <p className="text-xs text-muted-foreground mt-2">
-              Temporary feature: Add coins manually for testing
-            </p>
-          </CardContent>
-        </Card>
-      </motion.div>
+        {/* Popular Matches - Auto Scrolling Carousel */}
+        {popularMatches.length > 0 && !showFilters && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5 }}
+          >
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-2xl font-black italic uppercase section-title">
+                  POPULAR MATCHES
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="scroll-container">
+                  <div className="scroll-content">
+                    {/* Duplicate the matches twice for seamless infinite scroll */}
+                    {[...popularMatches, ...popularMatches].map((fixture, index) => (
+                      <Link 
+                        key={`${fixture.id}-${index}`} 
+                        href={`/auth/match/${fixture.api_id}`}
+                        className="flex-shrink-0 w-[320px]"
+                      >
+                        <Card className="cursor-pointer hover:shadow-lg transition-all duration-200 border-l-4 border-l-orange-500 h-full relative overflow-hidden">
+                          {/* Animated gradient background */}
+                          <motion.div
+                            className="absolute inset-0 bg-gradient-to-r from-orange-500/5 to-red-500/5"
+                            animate={{
+                              opacity: [0.3, 0.6, 0.3],
+                            }}
+                            transition={{ duration: 2, repeat: Infinity }}
+                          />
+                          <CardContent className="p-4 relative z-10">
+                            <div className="space-y-3">
+                              {/* Match Header */}
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                  <motion.div
+                                    animate={{ scale: [1, 1.2, 1] }}
+                                    transition={{ duration: 1, repeat: Infinity }}
+                                    className="w-2 h-2 bg-red-500 rounded-full"
+                                  />
+                                  <Badge className="text-xs bg-orange-500 hover:bg-orange-600">
+                                    LIVE
+                                  </Badge>
+                                </div>
+                                {fixture.league_name && (
+                                  <Badge variant="outline" className="text-xs">
+                                    🏆 {fixture.league_name}
+                                  </Badge>
+                                )}
+                              </div>
+
+                              {/* Teams and Score */}
+                              <div className="text-center space-y-2">
+                                <div className="flex items-center justify-between gap-2">
+                                  <div className="flex items-center gap-2 flex-1">
+                                    {fixture.home_team_logo && (
+                                      <div className="w-8 h-8 flex-shrink-0 flex items-center justify-center">
+                                        <img
+                                          src={fixture.home_team_logo}
+                                          alt={fixture.home_team_name || "Home"}
+                                          className="max-w-full max-h-full object-contain"
+                                          onError={(e) => {
+                                            const target = e.target as HTMLImageElement;
+                                            target.style.display = 'none';
+                                          }}
+                                        />
+                                      </div>
+                                    )}
+                                    <span className="font-medium text-sm truncate">
+                                      {fixture.home_team_name}
+                                    </span>
+                                  </div>
+                                  <div className="text-2xl font-bold mx-2">
+                                    {fixture.home_score !== null && fixture.away_score !== null ? (
+                                      `${fixture.home_score}:${fixture.away_score}`
+                                    ) : (
+                                      "VS"
+                                    )}
+                                  </div>
+                                  <div className="flex items-center gap-2 flex-1 justify-end">
+                                    <span className="font-medium text-sm truncate">
+                                      {fixture.away_team_name}
+                                    </span>
+                                    {fixture.away_team_logo && (
+                                      <div className="w-8 h-8 flex-shrink-0 flex items-center justify-center">
+                                        <img
+                                          src={fixture.away_team_logo}
+                                          alt={fixture.away_team_name || "Away"}
+                                          className="max-w-full max-h-full object-contain"
+                                          onError={(e) => {
+                                            const target = e.target as HTMLImageElement;
+                                            target.style.display = 'none';
+                                          }}
+                                        />
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      </Link>
+                    ))}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </motion.div>
+        )}
+
+        {/* Top Players */}
+        {topPlayers.length > 0 && !showFilters && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.6, duration: 0.5 }}
+            onMouseEnter={() => setIsPaused(true)}
+            onMouseLeave={() => setIsPaused(false)}
+          >
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-2xl font-black italic uppercase section-title flex items-center justify-between">
+                  <span>TOP SCORERS - {topLeagues[currentLeagueIndex].name}</span>
+                  <div className="flex gap-1">
+                    {topLeagues.map((_, index) => (
+                      <div
+                        key={index}
+                        className={`w-2 h-2 rounded-full transition-all ${
+                          index === currentLeagueIndex ? 'bg-primary w-4' : 'bg-muted-foreground/30'
+                        }`}
+                      />
+                    ))}
+                  </div>
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <AnimatePresence mode="wait">
+                  <motion.div
+                    key={currentLeagueIndex}
+                    initial={{ opacity: 0, x: 20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: -20 }}
+                    transition={{ duration: 0.3 }}
+                    className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4"
+                  >
+                    {topPlayers.map((playerData, index) => (
+                      <motion.div
+                        key={playerData.player.id}
+                        initial={{ opacity: 0, scale: 0.8 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        transition={{ delay: index * 0.05, duration: 0.3 }}
+                      >
+                        <Link href={`/auth/player/${playerData.player.id}`}>
+                          <motion.div
+                            whileHover={{ scale: 1.05, y: -4 }}
+                            transition={{ duration: 0.15, type: "spring", stiffness: 400, damping: 25 }}
+                            className="text-center p-3 rounded-lg border hover:shadow-lg will-change-transform transition-shadow duration-150 cursor-pointer"
+                          >
+                            <div className="relative w-16 h-16 mx-auto mb-2">
+                              <div className="w-full h-full rounded-full overflow-hidden border-2 border-primary/20 bg-muted flex items-center justify-center">
+                                <img
+                                  src={`https://api.sofascore.com/api/v1/player/${playerData.player.id}/image`}
+                                  alt={playerData.player.name}
+                                  className="w-full h-full object-cover"
+                                  onError={(e) => {
+                                    const target = e.target as HTMLImageElement;
+                                    target.style.display = 'none';
+                                    if (target.parentElement) {
+                                      target.parentElement.innerHTML = `<div class="w-full h-full flex items-center justify-center text-xl font-bold">${playerData.player.name.substring(0, 2).toUpperCase()}</div>`;
+                                    }
+                                  }}
+                                />
+                              </div>
+                              <div className="absolute -top-1 -right-1 w-6 h-6 bg-yellow-500 rounded-full flex items-center justify-center text-xs font-bold text-white shadow-lg">
+                                {index + 1}
+                              </div>
+                            </div>
+                            <p className="font-semibold text-sm truncate mb-1">{playerData.player.name}</p>
+                            <div className="flex items-center justify-center gap-1">
+                              <span className="text-xs">⚽</span>
+                              <span className="text-sm font-bold text-primary">{playerData.statistics.goals}</span>
+                            </div>
+                          </motion.div>
+                        </Link>
+                      </motion.div>
+                    ))}
+                  </motion.div>
+                </AnimatePresence>
+              </CardContent>
+            </Card>
+          </motion.div>
+        )}
+
+        
 
         {/* Search and Filters */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center justify-between">
-              <span>Filter Matches</span>
+              <span className="text-2xl font-black italic uppercase section-title">FILTERS</span>
               <Button
                 variant="outline"
                 size="sm"
                 onClick={() => setShowFilters(!showFilters)}
               >
-                <Filter className="mr-2 h-4 w-4" />
                 {showFilters ? "Hide" : "Show"} Filters
               </Button>
             </CardTitle>
@@ -865,14 +1256,22 @@ export default function DashboardPage() {
           <CardContent className="space-y-4">
             {/* Team Search - Always Visible */}
             <div className="space-y-2">
-              <Label htmlFor="searchTeam">🔍 Search Teams</Label>
-              <Input
-                id="searchTeam"
-                type="text"
-                placeholder="Search by team name..."
-                value={searchTeam}
-                onChange={(e) => setSearchTeam(e.target.value)}
-              />
+              <div className="flex gap-2">
+                <Input
+                  id="searchTeam"
+                  type="text"
+                  placeholder="Search by team name..."
+                  value={searchTeam}
+                  onChange={(e) => setSearchTeam(e.target.value)}
+                  className="flex-1"
+                />
+                <Link href="/auth/leagues">
+                  <Button variant="outline" className="gap-2">
+                    <Trophy className="h-4 w-4" />
+                    Browse Leagues
+                  </Button>
+                </Link>
+              </div>
             </div>
 
             {/* Predictable Only Toggle */}
@@ -885,7 +1284,7 @@ export default function DashboardPage() {
                 className="w-4 h-4 cursor-pointer"
               />
               <Label htmlFor="predictableOnly" className="cursor-pointer">
-                ⚡ Show only predictable matches
+                Show only predictable matches
               </Label>
             </div>
 
@@ -1053,220 +1452,48 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
 
-        {/* Popular Matches */}
-        {popularMatches.length > 0 && !showFilters && (
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5 }}
-          >
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <motion.div
-                    animate={{ rotate: [0, 10, -10, 0] }}
-                    transition={{ duration: 2, repeat: Infinity }}
-                  >
-                    <TrendingUp className="h-5 w-5 text-orange-500" />
-                  </motion.div>
-                  Popular Matches (Live & Trending)
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {popularMatches.slice(0, 6).map((fixture, index) => (
-                    <motion.div
-                      key={fixture.id}
-                      initial={{ opacity: 0, scale: 0.8 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      transition={{ delay: index * 0.1, duration: 0.3 }}
-                    >
-                      <Link href={`/auth/match/${fixture.api_id}`} className="block">
-                        <motion.div
-                          whileHover={{ scale: 1.05, y: -5 }}
-                          transition={{ duration: 0.2 }}
-                        >
-                          <Card className="cursor-pointer hover:shadow-lg transition-all duration-200 border-l-4 border-l-orange-500 h-full relative overflow-hidden">
-                            {/* Animated gradient background */}
-                            <motion.div
-                              className="absolute inset-0 bg-gradient-to-r from-orange-500/5 to-red-500/5"
-                              animate={{
-                                opacity: [0.3, 0.6, 0.3],
-                              }}
-                              transition={{ duration: 2, repeat: Infinity }}
-                            />
-                            <CardContent className="p-4 relative z-10">
-                              <div className="space-y-3">
-                                {/* Match Header */}
-                                <div className="flex items-center justify-between">
-                                  <div className="flex items-center gap-2">
-                                    <motion.div
-                                      animate={{ scale: [1, 1.2, 1] }}
-                                      transition={{ duration: 1, repeat: Infinity }}
-                                      className="w-2 h-2 bg-red-500 rounded-full"
-                                    />
-                                    <Badge className="text-xs bg-orange-500 hover:bg-orange-600">
-                                      🔥 LIVE
-                                    </Badge>
-                                  </div>
-                                  {fixture.league_name && fixture.league_id && (
-                                    <Badge 
-                                      variant="outline" 
-                                      className="text-xs cursor-pointer hover:bg-primary hover:text-primary-foreground transition-colors"
-                                      onClick={(e) => {
-                                        e.preventDefault();
-                                        e.stopPropagation();
-                                        window.location.href = `/auth/league/${fixture.league_id}`;
-                                      }}
-                                    >
-                                      🏆 {fixture.league_name}
-                                    </Badge>
-                                  )}
-                                </div>
-
-                                {/* Teams and Score */}
-                                <div className="text-center space-y-2">
-                                  <div className="flex items-center justify-between gap-2">
-                                    <div className="flex items-center gap-2 flex-1">
-                                      {fixture.home_team_logo && (
-                                        <div className="w-8 h-8 flex-shrink-0 flex items-center justify-center">
-                                          <img
-                                            src={fixture.home_team_logo}
-                                            alt={fixture.home_team_name || "Home"}
-                                            className="max-w-full max-h-full object-contain"
-                                            onError={(e) => {
-                                              const target = e.target as HTMLImageElement;
-                                              target.style.display = 'none';
-                                            }}
-                                          />
-                                        </div>
-                                      )}
-                                <span className="font-medium text-sm truncate">
-                                  {fixture.home_team_name}
-                                </span>
-                              </div>
-                              <div className="text-2xl font-bold mx-2">
-                                {fixture.home_score !== null && fixture.away_score !== null ? (
-                                  `${fixture.home_score}:${fixture.away_score}`
-                                ) : (
-                                  "VS"
-                                )}
-                              </div>
-                              <div className="flex items-center gap-2 flex-1 justify-end">
-                                <span className="font-medium text-sm truncate">
-                                  {fixture.away_team_name}
-                                </span>
-                                {fixture.away_team_logo && (
-                                  <div className="w-8 h-8 flex-shrink-0 flex items-center justify-center">
-                                    <img
-                                      src={fixture.away_team_logo}
-                                      alt={fixture.away_team_name || "Away"}
-                                      className="max-w-full max-h-full object-contain"
-                                      onError={(e) => {
-                                        const target = e.target as HTMLImageElement;
-                                        target.style.display = 'none';
-                                      }}
-                                    />
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  </motion.div>
-                </Link>
-              </motion.div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        </motion.div>
-        )}
-
-        {/* Top Players */}
-        {topPlayers.length > 0 && !showFilters && (
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.6, duration: 0.5 }}
-          >
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Trophy className="h-5 w-5 text-yellow-500" />
-                  Top Scorers - Premier League
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
-                  {topPlayers.map((playerData, index) => (
-                    <motion.div
-                      key={playerData.player.id}
-                      initial={{ opacity: 0, scale: 0.8 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      transition={{ delay: index * 0.1, duration: 0.3 }}
-                    >
-                      <Link href={`/auth/player/${playerData.player.id}`}>
-                        <motion.div
-                          whileHover={{ scale: 1.05, y: -5 }}
-                          transition={{ type: "spring", stiffness: 300 }}
-                          className="text-center p-3 rounded-lg border hover:shadow-lg transition-all cursor-pointer"
-                        >
-                          <div className="relative w-16 h-16 mx-auto mb-2">
-                            <div className="w-full h-full rounded-full overflow-hidden border-2 border-primary/20 bg-muted flex items-center justify-center">
-                              <img
-                                src={`https://api.sofascore.com/api/v1/player/${playerData.player.id}/image`}
-                                alt={playerData.player.name}
-                                className="w-full h-full object-cover"
-                                onError={(e) => {
-                                  const target = e.target as HTMLImageElement;
-                                  target.style.display = 'none';
-                                  if (target.parentElement) {
-                                    target.parentElement.innerHTML = `<div class="w-full h-full flex items-center justify-center text-xl font-bold">${playerData.player.name.substring(0, 2).toUpperCase()}</div>`;
-                                  }
-                                }}
-                              />
-                            </div>
-                            <div className="absolute -top-1 -right-1 w-6 h-6 bg-yellow-500 rounded-full flex items-center justify-center text-xs font-bold text-white shadow-lg">
-                              {index + 1}
-                            </div>
-                          </div>
-                          <p className="font-semibold text-sm truncate mb-1">{playerData.player.name}</p>
-                          <div className="flex items-center justify-center gap-1">
-                            <span className="text-xs">⚽</span>
-                            <span className="text-sm font-bold text-primary">{playerData.statistics.goals}</span>
-                          </div>
-                        </motion.div>
-                      </Link>
-                    </motion.div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          </motion.div>
-        )}
-
         {/* Fixtures List */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.4, duration: 0.5 }}
         >
+          {/* Trending Teaser */}
+          {fixtures.length > 0 && (
+            <motion.div
+              className="mb-4 p-4 rounded-lg border border-primary/20 bg-gradient-to-r from-primary/5 to-primary/10"
+              animate={{ 
+                boxShadow: ["0 0 0 0 rgba(var(--primary), 0)", "0 0 20px 5px rgba(var(--primary), 0.1)", "0 0 0 0 rgba(var(--primary), 0)"]
+              }}
+              transition={{ duration: 2, repeat: Infinity }}
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                    <Trophy className="h-5 w-5 text-primary" />
+                  <div>
+                    <p className="font-bold text-sm">🔥 {fixtures.length} matches waiting for your predictions!</p>
+                  </div>
+                </div>
+                <Badge variant="default" className="animate-pulse">
+                  HOT
+                </Badge>
+              </div>
+            </motion.div>
+          )}
+
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center justify-between flex-wrap gap-2">
-                <span>All Fixtures</span>
-                <div className="flex items-center gap-2">
-                  {(selectedCountries.length > 0 || selectedLeagues.length > 0 || showPredictableOnly || searchTeam) && (
+                <span className="text-2xl font-black italic uppercase section-title">ALL FIXTURES</span>
+                <div className="flex items-center flex-wrap gap-2">
+                  {(selectedCountries.length > 0 || selectedLeagues.length > 0 || searchTeam) && (
                     <motion.div
                       initial={{ scale: 0 }}
                       animate={{ scale: 1 }}
                       transition={{ type: "spring", stiffness: 500, damping: 30 }}
                     >
                       <Badge variant="outline" className="text-xs">
-                        🔍 {selectedCountries.length + selectedLeagues.length + (showPredictableOnly ? 1 : 0) + (searchTeam ? 1 : 0)} filters active
+                        🔍 {selectedCountries.length + selectedLeagues.length + (searchTeam ? 1 : 0)} filters active
                       </Badge>
                     </motion.div>
                   )}
@@ -1275,6 +1502,49 @@ export default function DashboardPage() {
               </CardTitle>
             </CardHeader>
             <CardContent>
+              {/* Quick Filter Buttons - Moved above fixtures */}
+              <div className="flex gap-2 mb-4 pb-4 border-b">
+                <Button
+                  variant={activeFixtureFilter === "upcoming" ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => {
+                    setActiveFixtureFilter("upcoming");
+                    setSortBy("starting_at");
+                    setOrder("asc");
+                    setShowPredictableOnly(false);
+                  }}
+                  className="text-xs"
+                >
+                  UPCOMING
+                </Button>
+                <Button
+                  variant={activeFixtureFilter === "latest" ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => {
+                    setActiveFixtureFilter("latest");
+                    setSortBy("starting_at");
+                    setOrder("desc");
+                    setShowPredictableOnly(false);
+                  }}
+                  className="text-xs"
+                >
+                  LATEST
+                </Button>
+                <Button
+                  variant={activeFixtureFilter === "started" ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => {
+                    setActiveFixtureFilter("started");
+                    setShowPredictableOnly(true);
+                    setSortBy("starting_at");
+                    setOrder("asc");
+                  }}
+                  className="text-xs"
+                >
+                  STARTED
+                </Button>
+              </div>
+              
               {isLoadingFixtures ? (
                 <div className="flex justify-center py-12">
                   <Loader2 className="h-8 w-8 animate-spin" />
@@ -1292,26 +1562,39 @@ export default function DashboardPage() {
                   <div className="space-y-3">
                     <AnimatePresence mode="popLayout">
                       {displayedFixtures.map((fixture, index) => (
-                        <motion.div
-                          key={fixture.id}
-                          layout
-                          initial={{ opacity: 0, x: -20 }}
-                          animate={{ opacity: 1, x: 0 }}
-                          exit={{ opacity: 0, x: 20 }}
-                          transition={{ delay: Math.min(index * 0.02, 0.5), duration: 0.3 }}
-                        >
-                          <FixtureCard
-                            fixture={fixture}
-                            isMatchActive={isMatchActive}
-                            onPredictClick={setSelectedFixture}
-                            onCountryClick={(country) => {
-                              if (!selectedCountries.includes(country)) {
-                                setSelectedCountries([...selectedCountries, country]);
-                                setShowFilters(true);
-                              }
-                            }}
-                          />
-                        </motion.div>
+                        <React.Fragment key={`fragment-${fixture.id}-${index}`}>
+                          {/* Insert Live Matches Carousel every 50 records */}
+                          {index > 0 && index % 50 === 0 && liveMatches.length > 0 && (
+                            <div className="my-4">
+                              <LiveMatchesCarousel 
+                                matches={liveMatches}
+                                autoScroll={true}
+                                scrollSpeed={30}
+                              />
+                            </div>
+                          )}
+                          
+                          <motion.div
+                            key={fixture.id}
+                            layout
+                            initial={{ opacity: 0, x: -20 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            exit={{ opacity: 0, x: 20 }}
+                            transition={{ delay: Math.min(index * 0.02, 0.5), duration: 0.3 }}
+                          >
+                            <FixtureCard
+                              fixture={fixture}
+                              isMatchActive={isMatchActive}
+                              onPredictClick={setSelectedFixture}
+                              onCountryClick={(country) => {
+                                if (!selectedCountries.includes(country)) {
+                                  setSelectedCountries([...selectedCountries, country]);
+                                  setShowFilters(true);
+                                }
+                              }}
+                            />
+                          </motion.div>
+                        </React.Fragment>
                       ))}
                     </AnimatePresence>
                   </div>
@@ -1363,6 +1646,19 @@ export default function DashboardPage() {
             fetchFixtures();
             fetchUser();
           }}
+        />
+
+        {/* Exit Intent Popup */}
+        <ExitIntentPopup
+          liveMatches={popularMatches.map(match => ({
+            id: match.api_id,
+            home_team_name: match.home_team_name || "Home",
+            away_team_name: match.away_team_name || "Away",
+            home_score: match.home_score ?? null,
+            away_score: match.away_score ?? null,
+            league_name: match.league_name || "Unknown League",
+          }))}
+          onClose={() => {}}
         />
       </div>
     </div>

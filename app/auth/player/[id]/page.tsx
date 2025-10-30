@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ArrowLeft, Loader2, Calendar, Trophy, TrendingUp, Users } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { ApiCache } from "@/lib/cache";
 
 interface PlayerDetails {
   id: number;
@@ -64,25 +65,65 @@ export default function PlayerPage() {
   const [stats, setStats] = useState<PlayerStats | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
+  const [liveMatches, setLiveMatches] = useState<any[]>([]);
 
   useEffect(() => {
     if (params.id) {
       fetchPlayerDetails();
     }
+    fetchLiveMatches();
   }, [params.id]);
+
+  const fetchLiveMatches = async () => {
+    try {
+      const cacheKey = 'live-matches-scroll';
+      const matches = await ApiCache.getOrFetch(
+        cacheKey,
+        async () => {
+          const response = await fetch('https://www.sofascore.com/api/v1/sport/football/events/live');
+          if (!response.ok) return [];
+          const data = await response.json();
+          const events = data.events || [];
+          return events.slice(0, 10).map((event: any) => ({
+            id: event.id,
+            home_team_name: event.homeTeam?.name || 'Home',
+            away_team_name: event.awayTeam?.name || 'Away',
+            home_score: event.homeScore?.current ?? 0,
+            away_score: event.awayScore?.current ?? 0,
+            league_name: event.tournament?.name || 'Unknown',
+          }));
+        },
+        ApiCache.DURATIONS.SHORT,
+        true
+      );
+      setLiveMatches(matches);
+    } catch (err) {
+      console.error('Failed to fetch live matches:', err);
+    }
+  };
 
   const fetchPlayerDetails = async () => {
     try {
-      // Fetch player details from SofaScore
-      const playerResponse = await fetch(`https://www.sofascore.com/api/v1/player/${params.id}`);
+      const cacheKey = `player-details-${params.id}`;
       
-      if (!playerResponse.ok) {
+      // Fetch player details from SofaScore with caching
+      const playerData = await ApiCache.getOrFetch(
+        cacheKey,
+        async () => {
+          const playerResponse = await fetch(`https://www.sofascore.com/api/v1/player/${params.id}`);
+          if (!playerResponse.ok) throw new Error('Player not found');
+          return await playerResponse.json();
+        },
+        ApiCache.DURATIONS.MEDIUM,
+        true
+      );
+      
+      if (!playerData || !playerData.player) {
         setError("Player not found");
         setIsLoading(false);
         return;
       }
       
-      const playerData = await playerResponse.json();
       const playerInfo = playerData.player;
       
       const playerDetails: PlayerDetails = {
@@ -202,7 +243,7 @@ export default function PlayerPage() {
   }
 
   return (
-    <div className="min-h-screen bg-background p-4 md:p-8">
+    <div className="min-h-screen football-bg p-4 md:p-8">
       <div className="max-w-4xl mx-auto space-y-6">
         {/* Header */}
         <motion.div
@@ -562,6 +603,79 @@ export default function PlayerPage() {
           </Card>
         </motion.div>
         )}
+
+        {/* Live Matches Scroll */}
+        {liveMatches.length > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+          >
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <TrendingUp className="h-5 w-5 text-red-500" />
+                  Live Matches Now
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="flex gap-3 overflow-x-auto pb-2">
+                  {liveMatches.map((match, index) => (
+                    <motion.div
+                      key={match.id}
+                      initial={{ opacity: 0, scale: 0.9 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      transition={{ delay: index * 0.05 }}
+                    >
+                      <Link href={`/auth/match/${match.id}`}>
+                        <Card className="min-w-[200px] p-3 hover:bg-muted/50 transition-all cursor-pointer group border hover:border-primary/50">
+                          <Badge variant="destructive" className="mb-2 text-xs animate-pulse">LIVE</Badge>
+                          <div className="space-y-1">
+                            <div className="flex items-center justify-between text-sm">
+                              <span className="font-medium truncate">{match.home_team_name}</span>
+                              <span className="font-bold ml-2">{match.home_score}</span>
+                            </div>
+                            <div className="flex items-center justify-between text-sm">
+                              <span className="font-medium truncate">{match.away_team_name}</span>
+                              <span className="font-bold ml-2">{match.away_score}</span>
+                            </div>
+                          </div>
+                          <div className="mt-2 text-xs text-muted-foreground truncate">{match.league_name}</div>
+                        </Card>
+                      </Link>
+                    </motion.div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          </motion.div>
+        )}
+
+        {/* Explore More CTA */}
+        <motion.div
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+        >
+          <Card className="bg-gradient-to-r from-primary/5 via-primary/10 to-primary/5 border-primary/20">
+            <CardContent className="p-6 text-center">
+              <motion.div
+                animate={{ y: [0, -5, 0] }}
+                transition={{ duration: 2, repeat: Infinity }}
+                className="inline-block mb-3"
+              >
+                <Trophy className="h-8 w-8 text-yellow-500" />
+              </motion.div>
+              <h3 className="text-xl font-bold mb-2">Discover More Players</h3>
+              <p className="text-muted-foreground mb-4">
+                Explore stats from players worldwide!
+              </p>
+              <Link href="/auth/dashboard">
+                <Button className="bg-gradient-to-r from-yellow-400 to-yellow-600 hover:from-yellow-500 hover:to-yellow-700 text-white font-bold shadow-lg hover:shadow-[0_0_20px_rgba(234,179,8,0.6)]">
+                  View All Matches →
+                </Button>
+              </Link>
+            </CardContent>
+          </Card>
+        </motion.div>
 
         {/* Action Buttons */}
         <motion.div

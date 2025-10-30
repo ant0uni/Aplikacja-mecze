@@ -14,6 +14,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 
 interface PredictionDialogProps {
   isOpen: boolean;
@@ -51,7 +52,7 @@ export function PredictionDialog({ isOpen, onClose, fixture, onSuccess }: Predic
       const response = await fetch("/api/user/me");
       if (response.ok) {
         const data = await response.json();
-        setUserCoins(data.coins || 0);
+        setUserCoins(data.user?.coins || 0);
       }
     } catch (error) {
       console.error("Failed to fetch user coins:", error);
@@ -66,17 +67,17 @@ export function PredictionDialog({ isOpen, onClose, fixture, onSuccess }: Predic
     const wager = parseInt(coinsWagered);
 
     if (isNaN(homeScore) || isNaN(awayScore) || isNaN(wager)) {
-      alert("Please enter valid numbers");
+      toast.error("Please enter valid numbers");
       return;
     }
 
     if (wager > userCoins) {
-      alert("Not enough coins!");
+      toast.error("Not enough coins!");
       return;
     }
 
     if (wager < 1) {
-      alert("Wager must be at least 1 coin");
+      toast.error("Wager must be at least 1 coin");
       return;
     }
 
@@ -89,15 +90,15 @@ export function PredictionDialog({ isOpen, onClose, fixture, onSuccess }: Predic
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          fixture_id: fixture.id,
-          predicted_home_score: homeScore,
-          predicted_away_score: awayScore,
-          coins_wagered: wager,
+          fixtureApiId: fixture.id,
+          predictedHomeScore: homeScore,
+          predictedAwayScore: awayScore,
+          coinsWagered: wager,
         }),
       });
 
       if (response.ok) {
-        alert("Prediction submitted successfully!");
+        toast.success("🎯 Prediction submitted successfully!");
         onClose();
         if (onSuccess) {
           onSuccess();
@@ -105,11 +106,11 @@ export function PredictionDialog({ isOpen, onClose, fixture, onSuccess }: Predic
         router.refresh();
       } else {
         const data = await response.json();
-        alert(data.error || "Failed to submit prediction");
+        toast.error(data.error || "Failed to submit prediction");
       }
     } catch (error) {
       console.error("Failed to submit prediction:", error);
-      alert("Failed to submit prediction");
+      toast.error("Failed to submit prediction");
     } finally {
       setIsPredicting(false);
     }

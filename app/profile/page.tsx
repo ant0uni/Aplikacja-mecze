@@ -3,10 +3,15 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { ArrowLeft, Loader2, Trophy, TrendingUp, TrendingDown } from "lucide-react";
+import { ArrowLeft, Loader2, Trophy, TrendingUp, TrendingDown, LogOut } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { toast } from "sonner";
+import { ThemeToggle } from "@/components/theme-toggle";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 
 interface User {
   id: number;
@@ -40,6 +45,8 @@ export default function ProfilePage() {
   const [predictions, setPredictions] = useState<Prediction[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [checkingPredictions, setCheckingPredictions] = useState<{ [key: number]: boolean }>({});
+  const [coinsToAdd, setCoinsToAdd] = useState("");
+  const [isAddingCoins, setIsAddingCoins] = useState(false);
 
   useEffect(() => {
     fetchUser();
@@ -130,7 +137,7 @@ export default function ProfilePage() {
       const response = await fetch(`https://www.sofascore.com/api/v1/event/${prediction.fixtureApiId}`);
       
       if (!response.ok) {
-        alert("Could not fetch match data. The match might not be available.");
+        toast.error("Could not fetch match data. The match might not be available.");
         return;
       }
       
@@ -158,12 +165,12 @@ export default function ProfilePage() {
       setPredictions(prev => prev.map(p => p.id === prediction.id ? updatedPrediction : p));
       
       if (!isFinished) {
-        alert(`Match Status: ${status}\nThis match is not finished yet. Current score: ${homeScore ?? '-'} - ${awayScore ?? '-'}`);
+        toast.info(`Match Status: ${status} - This match is not finished yet. Current score: ${homeScore ?? '-'} - ${awayScore ?? '-'}`);
         return;
       }
       
       if (homeScore === null || awayScore === null) {
-        alert("Match is finished but scores are not available.");
+        toast.warning("Match is finished but scores are not available.");
         return;
       }
       
@@ -172,26 +179,68 @@ export default function ProfilePage() {
                                 prediction.predictedAwayScore === awayScore;
       
       const resultMessage = predictionCorrect 
-        ? `🎉 YOU WON!\n\nYour Prediction: ${prediction.predictedHomeScore} - ${prediction.predictedAwayScore}\nActual Score: ${homeScore} - ${awayScore}\n\nYou should have won ${prediction.coinsWagered * 2} coins!`
-        : `😔 YOU LOST\n\nYour Prediction: ${prediction.predictedHomeScore} - ${prediction.predictedAwayScore}\nActual Score: ${homeScore} - ${awayScore}\n\nBetter luck next time!`;
+        ? `🎉 YOU WON! Your Prediction: ${prediction.predictedHomeScore} - ${prediction.predictedAwayScore} | Actual Score: ${homeScore} - ${awayScore}. You should have won ${prediction.coinsWagered * 2} coins!`
+        : `😔 YOU LOST - Your Prediction: ${prediction.predictedHomeScore} - ${prediction.predictedAwayScore} | Actual Score: ${homeScore} - ${awayScore}. Better luck next time!`;
       
-      alert(resultMessage);
+      if (predictionCorrect) {
+        toast.success(resultMessage, { duration: 5000 });
+      } else {
+        toast.error(resultMessage, { duration: 5000 });
+      }
       
       // If prediction is not settled but should be, suggest updating
       if (!prediction.isSettled && predictionCorrect) {
-        const shouldSettle = window.confirm("This prediction is not marked as settled in the database. Would you like to try settling it now?");
-        if (shouldSettle) {
-          // Here you would call an API to settle the prediction
-          // For now, just show a message
-          alert("Please contact an administrator to settle this prediction manually.");
-        }
+        toast.warning("Please contact an administrator to settle this prediction manually.", { duration: 5000 });
       }
       
     } catch (error) {
       console.error("Failed to check prediction:", error);
-      alert("Failed to check prediction result. Please try again.");
+      toast.error("Failed to check prediction result. Please try again.");
     } finally {
       setCheckingPredictions(prev => ({ ...prev, [prediction.id]: false }));
+    }
+  };
+
+  const handleLogout = async () => {
+    try {
+      await fetch("/api/auth/logout", { method: "POST" });
+      router.push("/login");
+      router.refresh();
+    } catch (error) {
+      console.error("Logout failed:", error);
+    }
+  };
+
+  const handleAddCoins = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const amount = parseInt(coinsToAdd);
+
+    if (isNaN(amount) || amount <= 0) {
+      toast.error("Please enter a valid amount");
+      return;
+    }
+
+    setIsAddingCoins(true);
+    try {
+      const response = await fetch("/api/user/coins", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ amount }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setUser(data.user);
+        setCoinsToAdd("");
+        toast.success(`Successfully added ${amount} coins!`);
+      } else {
+        toast.error("Failed to add coins");
+      }
+    } catch (error) {
+      console.error("Failed to add coins:", error);
+      toast.error("Failed to add coins");
+    } finally {
+      setIsAddingCoins(false);
     }
   };
 
@@ -210,16 +259,24 @@ export default function ProfilePage() {
   }
 
   return (
-    <div className="min-h-screen bg-background p-4 md:p-8">
+    <div className="min-h-screen football-bg p-4 md:p-8">
       <div className="max-w-4xl mx-auto space-y-6">
         {/* Header */}
-        <div className="flex items-center gap-4">
-          <Button variant="outline" size="icon" onClick={() => router.push('/auth/dashboard')}>
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
-          <div>
-            <h1 className="text-3xl font-bold">Profile & Settings</h1>
-            <p className="text-muted-foreground">Manage your account and view statistics</p>
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex items-center gap-4">
+            <Button variant="outline" size="icon" onClick={() => router.push('/auth/dashboard')}>
+              <ArrowLeft className="h-4 w-4" />
+            </Button>
+            <div>
+              <h1 className="text-3xl font-bold">Profile & Settings</h1>
+              <p className="text-muted-foreground">Manage your account and view statistics</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <ThemeToggle />
+            <Button onClick={handleLogout} variant="outline" size="icon" title="Logout">
+              <LogOut className="h-5 w-5" />
+            </Button>
           </div>
         </div>
 
@@ -261,39 +318,78 @@ export default function ProfilePage() {
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <div className="text-center p-4 border rounded-lg">
-                <Trophy className="h-6 w-6 mx-auto mb-2 text-yellow-500" />
+              <motion.div 
+                className="text-center p-4 border rounded-lg"
+                whileHover={{ scale: 1.05, y: -5 }}
+                transition={{ type: "spring", stiffness: 300 }}
+              >
+                <motion.div
+                  animate={{ rotate: [0, 10, -10, 0] }}
+                  transition={{ duration: 2, repeat: Infinity }}
+                >
+                  <Trophy className="h-6 w-6 mx-auto mb-2 text-yellow-500" />
+                </motion.div>
                 <p className="text-2xl font-bold">{successfulPredictions.length}</p>
                 <p className="text-sm text-muted-foreground">Won</p>
-              </div>
-              <div className="text-center p-4 border rounded-lg">
+              </motion.div>
+              <motion.div 
+                className="text-center p-4 border rounded-lg"
+                whileHover={{ scale: 1.05, y: -5 }}
+                transition={{ type: "spring", stiffness: 300 }}
+              >
                 <TrendingDown className="h-6 w-6 mx-auto mb-2 text-red-500" />
                 <p className="text-2xl font-bold">
                   {settledPredictions.length - successfulPredictions.length}
                 </p>
                 <p className="text-sm text-muted-foreground">Lost</p>
-              </div>
-              <div className="text-center p-4 border rounded-lg">
-                <TrendingUp className="h-6 w-6 mx-auto mb-2 text-blue-500" />
+              </motion.div>
+              <motion.div 
+                className="text-center p-4 border rounded-lg"
+                whileHover={{ scale: 1.05, y: -5 }}
+                transition={{ type: "spring", stiffness: 300 }}
+              >
+                <motion.div
+                  animate={{ y: [0, -5, 0] }}
+                  transition={{ duration: 1.5, repeat: Infinity }}
+                >
+                  <TrendingUp className="h-6 w-6 mx-auto mb-2 text-blue-500" />
+                </motion.div>
                 <p className="text-2xl font-bold">{totalWon}</p>
                 <p className="text-sm text-muted-foreground">Coins Won</p>
-              </div>
-              <div className="text-center p-4 border rounded-lg">
-                <div className="h-6 w-6 mx-auto mb-2 text-muted-foreground">⏳</div>
+              </motion.div>
+              <motion.div 
+                className="text-center p-4 border rounded-lg"
+                whileHover={{ scale: 1.05, y: -5 }}
+                transition={{ type: "spring", stiffness: 300 }}
+              >
+                <motion.div
+                  animate={{ rotate: 360 }}
+                  transition={{ duration: 3, repeat: Infinity, ease: "linear" }}
+                >
+                  <div className="h-6 w-6 mx-auto mb-2 text-muted-foreground">⏳</div>
+                </motion.div>
                 <p className="text-2xl font-bold">{pendingPredictions.length}</p>
                 <p className="text-sm text-muted-foreground">Pending</p>
-              </div>
+              </motion.div>
             </div>
 
-            <div className="mt-6 p-4 bg-muted rounded-lg">
+            <motion.div 
+              className="mt-6 p-4 bg-muted rounded-lg"
+              whileHover={{ scale: 1.02 }}
+              transition={{ type: "spring", stiffness: 300 }}
+            >
               <div className="flex justify-between items-center">
                 <div>
                   <p className="text-sm text-muted-foreground">Win Rate</p>
-                  <p className="text-2xl font-bold">
+                  <motion.p 
+                    className="text-2xl font-bold"
+                    animate={{ scale: [1, 1.05, 1] }}
+                    transition={{ duration: 2, repeat: Infinity }}
+                  >
                     {settledPredictions.length > 0
                       ? ((successfulPredictions.length / settledPredictions.length) * 100).toFixed(1)
                       : 0}%
-                  </p>
+                  </motion.p>
                 </div>
                 <div className="text-right">
                   <p className="text-sm text-muted-foreground">Net Profit</p>
@@ -302,7 +398,7 @@ export default function ProfilePage() {
                   </p>
                 </div>
               </div>
-            </div>
+            </motion.div>
           </CardContent>
         </Card>
 
@@ -433,6 +529,41 @@ export default function ProfilePage() {
                 This action is irreversible (Feature disabled)
               </p>
             </div>
+          </CardContent>
+        </Card>
+
+        {/* Developer Tools - Add Coins */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Developer Tools</CardTitle>
+            <CardDescription>Testing features</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleAddCoins} className="flex gap-2">
+              <div className="flex-1">
+                <Label htmlFor="coins" className="sr-only">
+                  Add Coins
+                </Label>
+                <Input
+                  id="coins"
+                  type="number"
+                  placeholder="Enter amount to add"
+                  value={coinsToAdd}
+                  onChange={(e) => setCoinsToAdd(e.target.value)}
+                  disabled={isAddingCoins}
+                  min="1"
+                />
+              </div>
+              <Button type="submit" disabled={isAddingCoins}>
+                {isAddingCoins ? (
+                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                ) : null}
+                Add Coins
+              </Button>
+            </form>
+            <p className="text-xs text-muted-foreground mt-2">
+              Temporary feature: Add coins manually for testing
+            </p>
           </CardContent>
         </Card>
       </div>

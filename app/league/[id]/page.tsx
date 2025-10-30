@@ -146,7 +146,7 @@ export default function LeaguePage() {
   }
 
   return (
-    <div className="min-h-screen bg-background p-4 md:p-8">
+    <div className="min-h-screen football-bg p-4 md:p-8">
       <div className="max-w-6xl mx-auto space-y-6">
         {/* Header */}
         <div className="flex items-center gap-4">
@@ -196,7 +196,8 @@ export default function LeaguePage() {
                   {standings.map((standing) => (
                     <TableRow
                       key={standing.team.id}
-                      className={getPromotionColor(standing.promotion)}
+                      className={`${getPromotionColor(standing.promotion)} cursor-pointer hover:bg-muted/50 transition-colors`}
+                      onClick={() => window.location.href = `/team/${standing.team.id}`}
                     >
                       <TableCell className="font-medium">{standing.position}</TableCell>
                       <TableCell>

@@ -3,9 +3,11 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
+import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ArrowLeft, Loader2, Trophy } from "lucide-react";
+import { ArrowLeft, Loader2, Trophy, TrendingUp } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import {
   Table,
   TableBody,
@@ -14,6 +16,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { ApiCache } from "@/lib/cache";
 
 interface TopScorer {
   player: {
@@ -49,6 +52,42 @@ export default function TopScorersPage() {
   const [leagueInfo, setLeagueInfo] = useState<LeagueInfo | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
+  const [liveMatches, setLiveMatches] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (params.id) {
+      fetchTopScorers();
+    }
+    fetchLiveMatches();
+  }, [params.id]);
+
+  const fetchLiveMatches = async () => {
+    try {
+      const cacheKey = 'live-matches-scroll';
+      const matches = await ApiCache.getOrFetch(
+        cacheKey,
+        async () => {
+          const response = await fetch('https://www.sofascore.com/api/v1/sport/football/events/live');
+          if (!response.ok) return [];
+          const data = await response.json();
+          const events = data.events || [];
+          return events.slice(0, 10).map((event: any) => ({
+            id: event.id,
+            home_team_name: event.homeTeam?.name || 'Home',
+            away_team_name: event.awayTeam?.name || 'Away',
+            home_score: event.homeScore?.current ?? 0,
+            away_score: event.awayScore?.current ?? 0,
+            league_name: event.tournament?.name || 'Unknown',
+          }));
+        },
+        ApiCache.DURATIONS.SHORT,
+        true
+      );
+      setLiveMatches(matches);
+    } catch (err) {
+      console.error('Failed to fetch live matches:', err);
+    }
+  };
 
   useEffect(() => {
     if (params.id) {
@@ -122,7 +161,7 @@ export default function TopScorersPage() {
   }
 
   return (
-    <div className="min-h-screen bg-background p-4 md:p-8">
+    <div className="min-h-screen football-bg p-4 md:p-8">
       <div className="max-w-6xl mx-auto space-y-6">
         {/* Header */}
         <div className="flex items-center gap-4">
@@ -229,6 +268,79 @@ export default function TopScorersPage() {
             </div>
           </CardContent>
         </Card>
+
+        {/* Live Matches Scroll */}
+        {liveMatches.length > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+          >
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <TrendingUp className="h-5 w-5 text-red-500" />
+                  Live Matches Now
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="flex gap-3 overflow-x-auto pb-2">
+                  {liveMatches.map((match, index) => (
+                    <motion.div
+                      key={match.id}
+                      initial={{ opacity: 0, scale: 0.9 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      transition={{ delay: index * 0.05 }}
+                    >
+                      <Link href={`/auth/match/${match.id}`}>
+                        <Card className="min-w-[200px] p-3 hover:bg-muted/50 transition-all cursor-pointer group border hover:border-primary/50">
+                          <Badge variant="destructive" className="mb-2 text-xs animate-pulse">LIVE</Badge>
+                          <div className="space-y-1">
+                            <div className="flex items-center justify-between text-sm">
+                              <span className="font-medium truncate">{match.home_team_name}</span>
+                              <span className="font-bold ml-2">{match.home_score}</span>
+                            </div>
+                            <div className="flex items-center justify-between text-sm">
+                              <span className="font-medium truncate">{match.away_team_name}</span>
+                              <span className="font-bold ml-2">{match.away_score}</span>
+                            </div>
+                          </div>
+                          <div className="mt-2 text-xs text-muted-foreground truncate">{match.league_name}</div>
+                        </Card>
+                      </Link>
+                    </motion.div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          </motion.div>
+        )}
+
+        {/* Explore More CTA */}
+        <motion.div
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+        >
+          <Card className="bg-gradient-to-r from-primary/5 via-primary/10 to-primary/5 border-primary/20">
+            <CardContent className="p-6 text-center">
+              <motion.div
+                animate={{ y: [0, -5, 0] }}
+                transition={{ duration: 2, repeat: Infinity }}
+                className="inline-block mb-3"
+              >
+                <Trophy className="h-8 w-8 text-yellow-500" />
+              </motion.div>
+              <h3 className="text-xl font-bold mb-2">Explore More Leagues</h3>
+              <p className="text-muted-foreground mb-4">
+                Check out top scorers from leagues worldwide!
+              </p>
+              <Link href="/auth/leagues">
+                <Button className="bg-gradient-to-r from-yellow-400 to-yellow-600 hover:from-yellow-500 hover:to-yellow-700 text-white font-bold shadow-lg hover:shadow-[0_0_20px_rgba(234,179,8,0.6)]">
+                  Browse All Leagues →
+                </Button>
+              </Link>
+            </CardContent>
+          </Card>
+        </motion.div>
 
         {/* Action Buttons */}
         <div className="flex justify-center gap-4">

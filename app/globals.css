@@ -118,5 +118,104 @@
   }
   body {
     @apply bg-background text-foreground;
+    background: linear-gradient(135deg, oklch(0.145 0 0) 0%, oklch(0.12 0.02 250) 50%, oklch(0.16 0.01 280) 100%);
+    background-attachment: fixed;
   }
+  
+  /* Make main titles italic, uppercase, and bolder - like the image */
+  h1, .dashboard-title {
+    font-style: italic;
+    font-weight: 900;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    font-family: 'Impact', 'Arial Black', sans-serif;
+  }
+  
+  h2 {
+    font-style: italic;
+    font-weight: 800;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+  }
+  
+  .section-title {
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+}
+
+/* Auto-scrolling carousel */
+@keyframes scroll-left {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+.scroll-container {
+  overflow: hidden;
+  position: relative;
+  width: 100%;
+  display: flex;
+}
+
+.scroll-content {
+  display: flex;
+  gap: 1rem;
+  animation: scroll-left 60s linear infinite;
+  width: max-content;
+}
+
+.scroll-content:hover {
+  animation-play-state: paused;
+}
+
+/* Football background pattern */
+.football-bg {
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(135deg, oklch(0.145 0 0) 0%, oklch(0.12 0.02 250) 50%, oklch(0.16 0.01 280) 100%);
+  background-attachment: fixed;
+}
+
+.football-bg::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-image: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><circle cx="50" cy="50" r="40" fill="none" stroke="white" stroke-width="0.5" opacity="0.03"/><path d="M50 10 L50 30 M50 70 L50 90 M10 50 L30 50 M70 50 L90 50" stroke="white" stroke-width="0.5" opacity="0.03"/></svg>');
+  background-size: 100px 100px;
+  opacity: 0.1;
+  z-index: 0;
+  pointer-events: none;
+}
+
+.football-bg > * {
+  position: relative;
+  z-index: 1;
+}
+
+/* Gradient overlays for cards */
+.gradient-card {
+  background: linear-gradient(135deg, oklch(0.205 0.02 250 / 0.8) 0%, oklch(0.18 0.03 280 / 0.9) 100%);
+  backdrop-filter: blur(10px);
+  border: 1px solid oklch(1 0 0 / 0.1);
+}
+
+.gradient-card-light {
+  background: linear-gradient(135deg, oklch(0.25 0.02 250 / 0.6) 0%, oklch(0.22 0.03 280 / 0.7) 100%);
+}
+
+/* Hide scrollbar */
+.scrollbar-hide {
+  -ms-overflow-style: none;  /* IE and Edge */
+  scrollbar-width: none;  /* Firefox */
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;  /* Chrome, Safari and Opera */
 }

@@ -7,9 +7,10 @@ import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ArrowLeft, Loader2, Calendar, MapPin, Trophy } from "lucide-react";
+import { ArrowLeft, Loader2, Calendar, MapPin, Trophy, TrendingUp } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { PredictionDialog } from "@/components/prediction-dialog";
+import { ApiCache } from "@/lib/cache";
 
 interface Player {
   id: number;
@@ -92,6 +93,8 @@ export default function MatchPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
   const [isPredictionDialogOpen, setIsPredictionDialogOpen] = useState(false);
+  const [leagueMatches, setLeagueMatches] = useState<any[]>([]);
+  const [liveMatches, setLiveMatches] = useState<any[]>([]);
 
   useEffect(() => {
     console.log("Match page params:", params);
@@ -277,6 +280,80 @@ export default function MatchPage() {
     setIsPredictionDialogOpen(true);
   };
 
+  const fetchLeagueMatches = async (leagueId: number) => {
+    try {
+      const cacheKey = `league-matches-${leagueId}`;
+      const matches = await ApiCache.getOrFetch(
+        cacheKey,
+        async () => {
+          const today = new Date().toISOString().split('T')[0];
+          const response = await fetch(`https://www.sofascore.com/api/v1/sport/football/scheduled-events/${today}`);
+          if (!response.ok) return [];
+          
+          const data = await response.json();
+          const events = data.events || [];
+          
+          return events
+            .filter((e: any) => (e.tournament?.uniqueTournament?.id === leagueId || e.tournament?.id === leagueId) && e.id !== parseInt(params.id as string))
+            .slice(0, 5)
+            .map((event: any) => ({
+              id: event.id,
+              home_team_id: event.homeTeam?.id || null,
+              away_team_id: event.awayTeam?.id || null,
+              home_team_name: event.homeTeam?.name || 'Home',
+              away_team_name: event.awayTeam?.name || 'Away',
+              home_score: event.homeScore?.current ?? null,
+              away_score: event.awayScore?.current ?? null,
+              starting_at: new Date(event.startTimestamp * 1000).toISOString(),
+              state: event.status?.description || event.status?.type || 'Unknown',
+            }));
+        },
+        ApiCache.DURATIONS.SHORT,
+        true
+      );
+      setLeagueMatches(matches);
+    } catch (error) {
+      console.error("Failed to fetch league matches:", error);
+    }
+  };
+
+  const fetchLiveMatches = async () => {
+    try {
+      const cacheKey = 'live-matches-marquee';
+      const matches = await ApiCache.getOrFetch(
+        cacheKey,
+        async () => {
+          const response = await fetch('https://www.sofascore.com/api/v1/sport/football/events/live');
+          if (!response.ok) return [];
+          
+          const data = await response.json();
+          const events = data.events || [];
+          
+          return events.slice(0, 10).map((event: any) => ({
+            id: event.id,
+            home_team_name: event.homeTeam?.name || 'Home',
+            away_team_name: event.awayTeam?.name || 'Away',
+            home_score: event.homeScore?.current ?? 0,
+            away_score: event.awayScore?.current ?? 0,
+            league_name: event.tournament?.name || 'Unknown',
+          }));
+        },
+        ApiCache.DURATIONS.SHORT,
+        true
+      );
+      setLiveMatches(matches);
+    } catch (error) {
+      console.error("Failed to fetch live matches:", error);
+    }
+  };
+
+  useEffect(() => {
+    if (match?.league?.id) {
+      fetchLeagueMatches(match.league.id);
+    }
+    fetchLiveMatches();
+  }, [match?.league?.id]);
+
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -301,7 +378,7 @@ export default function MatchPage() {
   }
 
   return (
-    <div className="min-h-screen bg-background p-4 md:p-8">
+    <div className="min-h-screen football-bg p-4 md:p-8">
       <div className="max-w-4xl mx-auto space-y-6">
         {/* Header */}
         <motion.div
@@ -314,7 +391,7 @@ export default function MatchPage() {
             <ArrowLeft className="h-4 w-4" />
           </Button>
           <div className="flex-1">
-            <h1 className="text-3xl font-bold">⚽ Match Details</h1>
+            <h1 className="text-3xl font-bold">Match Details</h1>
             <p className="text-muted-foreground">View match information and statistics</p>
           </div>
           <motion.div
@@ -323,7 +400,44 @@ export default function MatchPage() {
           >
             <Badge variant={getStatusBadgeVariant()}>{getMatchStatus()}</Badge>
           </motion.div>
+          {match && isMatchActive(match) && (
+            <Button 
+              onClick={handlePredictClick} 
+              className="bg-gradient-to-r from-yellow-400 to-yellow-600 hover:from-yellow-500 hover:to-yellow-700 text-white font-bold shadow-lg hover:shadow-[0_0_20px_rgba(234,179,8,0.6)] transition-all duration-150"
+            >
+              ⚡ Predict
+            </Button>
+          )}
         </motion.div>
+        {/* Live Matches Marquee - Moved to Top */}
+        {liveMatches.length > 0 && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            className="overflow-hidden bg-gradient-to-r from-red-500/10 via-orange-500/10 to-red-500/10 rounded-lg border border-red-500/20"
+          >
+            <div className="py-3">
+              <motion.div
+                animate={{ x: [0, -1000] }}
+                transition={{ duration: 30, repeat: Infinity, ease: "linear" }}
+                className="flex gap-6 whitespace-nowrap"
+              >
+                {[...liveMatches, ...liveMatches].map((match, index) => (
+                  <Link key={`${match.id}-${index}`} href={`/auth/match/${match.id}`}>
+                    <div className="inline-flex items-center gap-3 px-4 py-1 hover:bg-red-500/20 rounded transition-colors cursor-pointer">
+                      <Badge variant="destructive" className="animate-pulse text-xs">LIVE</Badge>
+                      <span className="text-sm font-medium">
+                        {match.home_team_name} {match.home_score} - {match.away_score} {match.away_team_name}
+                      </span>
+                      <span className="text-xs text-muted-foreground">{match.league_name}</span>
+                    </div>
+                  </Link>
+                ))}
+              </motion.div>
+            </div>
+          </motion.div>
+        )}
+
 
         {/* Match Score Card */}
         <motion.div
@@ -366,11 +480,8 @@ export default function MatchPage() {
             <CardContent>
               <div className="grid grid-cols-3 gap-4 items-center">
                 {/* Home Team */}
-                <Link href={`/auth/team/${match.home_team.id}`} className="text-center hover:opacity-80 transition-opacity">
-                  <motion.div
-                    whileHover={{ scale: 1.1 }}
-                    transition={{ type: "spring", stiffness: 300 }}
-                  >
+                <Link href={`/auth/team/${match.home_team.id}`} className="text-center hover:opacity-70 transition-opacity">
+                  <div>
                     {match.home_team.logo ? (
                       <div className="w-20 h-20 mx-auto mb-2 flex items-center justify-center">
                         <img src={match.home_team.logo} alt={match.home_team.name} className="max-w-full max-h-full object-contain" />
@@ -381,37 +492,25 @@ export default function MatchPage() {
                     </div>
                   )}
                   <h3 className="font-bold text-lg">{match.home_team.name}</h3>
-                </motion.div>
+                </div>
               </Link>
 
               {/* Score */}
-              <motion.div
-                initial={{ scale: 0 }}
-                animate={{ scale: 1 }}
-                transition={{ delay: 0.3, type: "spring", stiffness: 200 }}
-                className="text-center"
-              >
+              <div className="text-center">
                 {match.home_team.score !== null && match.away_team.score !== null ? (
-                  <motion.div
-                    animate={{ scale: [1, 1.05, 1] }}
-                    transition={{ duration: 2, repeat: Infinity }}
-                    className="text-5xl font-bold"
-                  >
+                  <div className="text-5xl font-bold">
                     {match.home_team.score} - {match.away_team.score}
-                  </motion.div>
+                  </div>
                 ) : (
                   <div className="text-2xl font-semibold text-muted-foreground">
                     {new Date(match.starting_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                   </div>
                 )}
-              </motion.div>
+              </div>
 
               {/* Away Team */}
-              <Link href={`/auth/team/${match.away_team.id}`} className="text-center hover:opacity-80 transition-opacity">
-                <motion.div
-                  whileHover={{ scale: 1.1 }}
-                  transition={{ type: "spring", stiffness: 300 }}
-                >
+              <Link href={`/auth/team/${match.away_team.id}`} className="text-center hover:opacity-70 transition-opacity">
+                <div>
                   {match.away_team.logo ? (
                     <div className="w-20 h-20 mx-auto mb-2 flex items-center justify-center">
                       <img src={match.away_team.logo} alt={match.away_team.name} className="max-w-full max-h-full object-contain" />
@@ -422,7 +521,7 @@ export default function MatchPage() {
                     </div>
                   )}
                   <h3 className="font-bold text-lg">{match.away_team.name}</h3>
-                </motion.div>
+                </div>
               </Link>
             </div>
 
@@ -818,10 +917,138 @@ export default function MatchPage() {
           </Card>
         )}
 
+        {/* Other Matches in League */}
+        {leagueMatches.length > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2 }}
+          >
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <CardTitle className="flex items-center gap-2">
+                    <Trophy className="h-5 w-5 text-primary" />
+                    Other Matches in {match.league.name}
+                  </CardTitle>
+                  <Link href={`/auth/league/${match.league.id}`}>
+                    <Button variant="ghost" size="sm">View All →</Button>
+                  </Link>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="grid gap-3">
+                  {leagueMatches.slice(0, 3).map((m, index) => (
+                    <motion.div
+                      key={m.id}
+                      initial={{ opacity: 0, x: -20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: index * 0.1 }}
+                    >
+                      <Link href={`/auth/match/${m.id}`}>
+                        <Card className="p-4 hover:bg-muted/50 transition-all cursor-pointer group border hover:border-primary/50">
+                          <div className="space-y-3">
+                            {/* Home Team */}
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-3 flex-1">
+                                {m.home_team_id && (
+                                  <div className="w-8 h-8 flex-shrink-0 flex items-center justify-center">
+                                    <img
+                                      src={`https://api.sofascore.com/api/v1/team/${m.home_team_id}/image`}
+                                      alt={m.home_team_name}
+                                      className="max-w-full max-h-full object-contain"
+                                      onError={(e) => {
+                                        const target = e.target as HTMLImageElement;
+                                        target.style.display = 'none';
+                                      }}
+                                    />
+                                  </div>
+                                )}
+                                <span className="font-medium group-hover:text-primary transition-colors">
+                                  {m.home_team_name}
+                                </span>
+                              </div>
+                              <span className="text-lg font-bold ml-2">{m.home_score ?? '-'}</span>
+                            </div>
+                            
+                            {/* Away Team */}
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-3 flex-1">
+                                {m.away_team_id && (
+                                  <div className="w-8 h-8 flex-shrink-0 flex items-center justify-center">
+                                    <img
+                                      src={`https://api.sofascore.com/api/v1/team/${m.away_team_id}/image`}
+                                      alt={m.away_team_name}
+                                      className="max-w-full max-h-full object-contain"
+                                      onError={(e) => {
+                                        const target = e.target as HTMLImageElement;
+                                        target.style.display = 'none';
+                                      }}
+                                    />
+                                  </div>
+                                )}
+                                <span className="font-medium group-hover:text-primary transition-colors">
+                                  {m.away_team_name}
+                                </span>
+                              </div>
+                              <span className="text-lg font-bold ml-2">{m.away_score ?? '-'}</span>
+                            </div>
+                          </div>
+                          
+                          {/* Match Info */}
+                          <div className="mt-3 pt-3 border-t flex items-center justify-between">
+                            <span className="text-xs text-muted-foreground">
+                              {new Date(m.starting_at).toLocaleDateString([], { 
+                                month: 'short', 
+                                day: 'numeric',
+                                hour: '2-digit',
+                                minute: '2-digit'
+                              })}
+                            </span>
+                            <Badge variant="outline" className="text-xs">{m.state}</Badge>
+                          </div>
+                        </Card>
+                      </Link>
+                    </motion.div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          </motion.div>
+        )}
+
+        {/* Trending Predictions CTA */}
+        <motion.div
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ delay: 0.3 }}
+        >
+          <Card className="bg-gradient-to-r from-primary/5 via-primary/10 to-primary/5 border-primary/20">
+            <CardContent className="p-6 text-center">
+              <motion.div
+                animate={{ y: [0, -5, 0] }}
+                transition={{ duration: 2, repeat: Infinity }}
+                className="inline-block mb-3"
+              >
+                <TrendingUp className="h-8 w-8 text-primary" />
+              </motion.div>
+              <h3 className="text-xl font-bold mb-2">Want to see more predictions?</h3>
+              <p className="text-muted-foreground mb-4">
+                Explore trending predictions and join the community!
+              </p>
+              <Link href="/auth/dashboard">
+                <Button className="bg-gradient-to-r from-yellow-400 to-yellow-600 hover:from-yellow-500 hover:to-yellow-700 text-black font-bold shadow-lg hover:shadow-yellow-500">
+                  View All Matches →
+                </Button>
+              </Link>
+            </CardContent>
+          </Card>
+        </motion.div>
+
         {/* Action Buttons */}
         <div className="flex gap-2 justify-center flex-wrap">
           {match && isMatchActive(match) && (
-            <Button onClick={handlePredictClick} size="lg">
+            <Button onClick={handlePredictClick} size="lg" className="bg-gradient-to-r from-yellow-400 to-yellow-600 hover:from-yellow-500 hover:to-yellow-700 text-white font-bold shadow-lg hover:shadow-[0_0_20px_rgba(234,179,8,0.6)] transition-all duration-150">
               ⚡ Make Prediction
             </Button>
           )}
