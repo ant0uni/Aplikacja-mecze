@@ -5,12 +5,12 @@ import { eq } from "drizzle-orm";
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
-  const fixtureId = params.id;
+  const { id: fixtureId } = await params;
 
   console.log("Fixture detail API called with ID:", fixtureId);
-  console.log("Params:", params);
+  console.log("Params:", { id: fixtureId });
 
   if (!fixtureId || fixtureId === "undefined") {
     console.error("Invalid fixture ID received:", fixtureId);
