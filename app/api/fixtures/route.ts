@@ -3,8 +3,7 @@ import { db } from "@/db";
 import { fixtures } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { handleOptions } from "@/lib/cors";
-
-const SOFASCORE_API_BASE = "https://www.sofascore.com/api/v1";
+import { fetchFromSofaScore } from "@/lib/sofascore-proxy";
 
 export async function OPTIONS() {
   return handleOptions();
@@ -17,65 +16,12 @@ export async function GET(request: NextRequest) {
     // Get date parameter (defaults to today)
     const dateParam = searchParams.get("dateFrom") || new Date().toISOString().split('T')[0];
     
-    // Build SofaScore API URL - uses date format: YYYY-MM-DD
-    const url = `${SOFASCORE_API_BASE}/sport/football/scheduled-events/${dateParam}`;
+    // Build SofaScore API endpoint
+    const endpoint = `/sport/football/scheduled-events/${dateParam}`;
     
-    console.log("Fetching fixtures from SofaScore:", url);
+    console.log("Fetching fixtures from SofaScore:", endpoint);
 
-    const response = await fetch(url, {
-      next: { revalidate: 60 }, // Cache for 1 minute
-      headers: {
-        'Accept': 'application/json',
-        'Accept-Language': 'en-US,en;q=0.9',
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'Referer': 'https://www.sofascore.com/',
-        'Origin': 'https://www.sofascore.com',
-        'Cache-Control': 'no-cache',
-        'Pragma': 'no-cache',
-      }
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error("SofaScore API error:", response.status, errorText);
-      
-      // If SofaScore is blocking us, return empty array instead of failing
-      if (response.status === 403 || response.status === 401) {
-        console.warn("SofaScore API blocked request (403/401), returning empty fixtures");
-        return NextResponse.json(
-          { 
-            fixtures: [],
-            count: 0,
-            date: dateParam,
-            warning: "Unable to fetch live data from external API. Please try again later."
-          },
-          { 
-            status: 200,
-            headers: {
-              'Access-Control-Allow-Origin': '*',
-              'Access-Control-Allow-Methods': 'GET, OPTIONS',
-              'Access-Control-Allow-Headers': 'Content-Type',
-            }
-          }
-        );
-      }
-      
-      return NextResponse.json(
-        { 
-          error: "Failed to fetch fixtures from SofaScore API", 
-          details: errorText, 
-          status: response.status,
-        },
-        { 
-          status: 500,
-          headers: {
-            'Access-Control-Allow-Origin': '*',
-            'Access-Control-Allow-Methods': 'GET, OPTIONS',
-            'Access-Control-Allow-Headers': 'Content-Type',
-          }
-        }
-      );
-    }
+    const response = await fetchFromSofaScore(endpoint);
 
     const data = await response.json();
 
@@ -270,27 +216,20 @@ export async function GET(request: NextRequest) {
         count: cachedFixtures.length,
         date: dateParam,
       },
-      { 
-        status: 200,
-        headers: {
-          'Access-Control-Allow-Origin': '*',
-          'Access-Control-Allow-Methods': 'GET, OPTIONS',
-          'Access-Control-Allow-Headers': 'Content-Type',
-        }
-      }
+      { status: 200 }
     );
   } catch (error: any) {
     console.error("Fixtures API error:", error);
+    
+    // Return empty array on error so the app doesn't crash
     return NextResponse.json(
-      { error: error.message || "Failed to fetch fixtures" },
       { 
-        status: 500,
-        headers: {
-          'Access-Control-Allow-Origin': '*',
-          'Access-Control-Allow-Methods': 'GET, OPTIONS',
-          'Access-Control-Allow-Headers': 'Content-Type',
-        }
-      }
+        fixtures: [],
+        count: 0,
+        error: error.message || "Failed to fetch fixtures",
+        warning: "Unable to fetch live data. Please try again later."
+      },
+      { status: 200 }
     );
   }
 }
