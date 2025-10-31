@@ -197,8 +197,21 @@ export async function fetchFromSofaScore(endpoint: string, options?: RequestInit
     }
   });
 
-  // Add Host header separately
+  // Add critical headers to bypass CORS and make it look like a same-origin request
   headers['Host'] = 'www.sofascore.com';
+  headers['Origin'] = 'https://www.sofascore.com';
+  headers['Referer'] = 'https://www.sofascore.com/';
+  
+  // Add X-Forwarded headers to make it look like it's coming from localhost/sofascore
+  headers['X-Forwarded-For'] = '127.0.0.1';
+  headers['X-Forwarded-Host'] = 'www.sofascore.com';
+  headers['X-Forwarded-Proto'] = 'https';
+  headers['X-Real-IP'] = '127.0.0.1';
+  
+  // Additional headers that legitimate browsers send
+  headers['sec-ch-ua'] = headerProfile['sec-ch-ua'] || '"Not_A Brand";v="8", "Chromium";v="120"';
+  headers['sec-ch-ua-mobile'] = headerProfile['sec-ch-ua-mobile'] || '?0';
+  headers['sec-ch-ua-platform'] = headerProfile['sec-ch-ua-platform'] || '"Windows"';
 
   // Merge with any custom headers from options
   if (options?.headers) {
