@@ -171,87 +171,32 @@ async function fetchWithRetry(
 }
 
 export async function fetchFromSofaScore(endpoint: string, options?: RequestInit) {
-  const baseUrl = 'https://www.sofascore.com/api/v1';
-  const url = `${baseUrl}${endpoint}`;
-
-  // Add a small random delay between requests (100-500ms) to look more human
-  const now = Date.now();
-  const timeSinceLastRequest = now - lastRequestTime;
-  if (timeSinceLastRequest < 200) {
-    const randomDelay = Math.floor(Math.random() * 400) + 100;
-    await delay(randomDelay);
-  }
-  lastRequestTime = Date.now();
-
-  // Use our advanced header spoofing
-  console.log(`Fetching ${endpoint} directly with header spoofing`);
+  // Use our Next.js API proxy instead of calling SofaScore directly
+  // This avoids CORS issues by making requests server-side
+  const proxyUrl = `/api/proxy/sofascore?endpoint=${encodeURIComponent(endpoint)}`;
   
-  // Get a random complete header profile
-  const headerProfile = getRandomHeaderProfile();
-  
-  // Build headers object, removing empty values (for Safari/Firefox compatibility)
-  const headers: Record<string, string> = {};
-  Object.entries(headerProfile).forEach(([key, value]) => {
-    if (value) {
-      headers[key] = value;
-    }
-  });
-
-  // Add critical headers to bypass CORS and make it look like a same-origin request
-  headers['Host'] = 'www.sofascore.com';
-  headers['Origin'] = 'https://www.sofascore.com';
-  headers['Referer'] = 'https://www.sofascore.com/';
-  
-  // Add X-Forwarded headers to make it look like it's coming from localhost/sofascore
-  headers['X-Forwarded-For'] = '127.0.0.1';
-  headers['X-Forwarded-Host'] = 'www.sofascore.com';
-  headers['X-Forwarded-Proto'] = 'https';
-  headers['X-Real-IP'] = '127.0.0.1';
-  
-  // Additional headers that legitimate browsers send
-  headers['sec-ch-ua'] = headerProfile['sec-ch-ua'] || '"Not_A Brand";v="8", "Chromium";v="120"';
-  headers['sec-ch-ua-mobile'] = headerProfile['sec-ch-ua-mobile'] || '?0';
-  headers['sec-ch-ua-platform'] = headerProfile['sec-ch-ua-platform'] || '"Windows"';
-
-  // Merge with any custom headers from options
-  if (options?.headers) {
-    Object.assign(headers, options.headers);
-  }
+  console.log(`Fetching ${endpoint} via server-side proxy`);
 
   try {
-    const response = await fetchWithRetry(url, {
+    const response = await fetch(proxyUrl, {
       ...options,
-      headers,
-      // Force no cache to avoid stale data
       cache: 'no-store',
-      // Add these to make it look more like a browser
-      redirect: 'follow',
-      referrerPolicy: 'strict-origin-when-cross-origin',
     });
 
     if (!response.ok) {
-      console.error('SofaScore API error:', {
-        url,
+      const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+      console.error('Proxy API error:', {
+        endpoint,
         status: response.status,
-        statusText: response.statusText,
-        headers: Object.fromEntries(response.headers.entries()),
+        error: errorData,
       });
       
-      // Log response body for debugging
-      const text = await response.text();
-      console.error('Response body:', text.substring(0, 500));
-      
-      // If we get 403, log the headers we used for debugging
-      if (response.status === 403) {
-        console.error('Request headers that failed:', headers);
-      }
-      
-      throw new Error(`SofaScore API error: ${response.status} ${response.statusText}`);
+      throw new Error(`Proxy API error: ${response.status} ${errorData.error || response.statusText}`);
     }
 
     return response;
   } catch (error) {
-    console.error('Failed to fetch from SofaScore:', error);
+    console.error('Failed to fetch via proxy:', error);
     throw error;
   }
 }
