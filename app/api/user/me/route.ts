@@ -19,7 +19,16 @@ export async function GET() {
       .select({
         id: users.id,
         email: users.email,
+        nickname: users.nickname,
         coins: users.coins,
+        badges: users.badges,
+        avatar: users.avatar,
+        profileBackground: users.profileBackground,
+        avatarFrame: users.avatarFrame,
+        victoryEffect: users.victoryEffect,
+        profileTitle: users.profileTitle,
+        ownedItems: users.ownedItems,
+        createdAt: users.createdAt,
       })
       .from(users)
       .where(eq(users.id, currentUser.userId))

@@ -1,12 +1,21 @@
 import { pgTable, serial, text, integer, timestamp, boolean, varchar } from "drizzle-orm/pg-core";
-import { relations } from "drizzle-orm";
+import { relations, sql } from "drizzle-orm";
 
 // Users table
 export const users = pgTable("users", {
   id: serial("id").primaryKey(),
   email: varchar("email", { length: 255 }).notNull().unique(),
+  nickname: varchar("nickname", { length: 50 }).notNull().unique(),
   password: text("password").notNull(),
   coins: integer("coins").notNull().default(100), // Starting coins
+  badges: text("badges").array().notNull().default(sql`ARRAY[]::text[]`), // User badges (e.g., ["winner", "veteran"])
+  // Shop items
+  avatar: varchar("avatar", { length: 100 }).default("default"), // Current avatar ID
+  profileBackground: varchar("profile_background", { length: 100 }).default("default"), // Profile background ID
+  avatarFrame: varchar("avatar_frame", { length: 100 }).default("none"), // Avatar frame ID
+  victoryEffect: varchar("victory_effect", { length: 100 }).default("none"), // Victory effect ID
+  profileTitle: varchar("profile_title", { length: 100 }), // Custom profile title
+  ownedItems: text("owned_items").array().notNull().default(sql`ARRAY[]::text[]`), // Array of owned item IDs
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });

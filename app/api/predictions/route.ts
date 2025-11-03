@@ -70,17 +70,67 @@ export async function POST(request: NextRequest) {
 
     let fixtureId = fixture?.id;
     
-    // If fixture doesn't exist in our DB, create a minimal entry
+    // If fixture doesn't exist in our DB, fetch from SofaScore and create entry
     if (!fixtureId) {
-      const [newFixture] = await db
-        .insert(fixtures)
-        .values({
+      try {
+        // Fetch match data from SofaScore to get team names and logos
+        const sofascoreResponse = await fetch(
+          `https://www.sofascore.com/api/v1/event/${validatedData.fixtureApiId}`
+        );
+        
+        let fixtureData: any = {
           apiId: validatedData.fixtureApiId,
-          name: "Match", // Placeholder, will be updated by sync
-          startingAt: new Date(Date.now() + 86400000), // Tomorrow as placeholder
-        })
-        .returning();
-      fixtureId = newFixture.id;
+          name: "Match",
+          startingAt: new Date(Date.now() + 86400000),
+        };
+
+        if (sofascoreResponse.ok) {
+          const data = await sofascoreResponse.json();
+          const event = data.event;
+          
+          // Get team logos (SofaScore may not include direct logo URL, construct it from team ID)
+          const homeTeamLogo = event.homeTeam?.logo || 
+                             (event.homeTeam?.id ? `https://api.sofascore.com/api/v1/team/${event.homeTeam.id}/image` : null);
+          const awayTeamLogo = event.awayTeam?.logo || 
+                             (event.awayTeam?.id ? `https://api.sofascore.com/api/v1/team/${event.awayTeam.id}/image` : null);
+          
+          fixtureData = {
+            apiId: validatedData.fixtureApiId,
+            name: `${event.homeTeam?.name || 'Home'} vs ${event.awayTeam?.name || 'Away'}`,
+            homeTeamId: event.homeTeam?.id,
+            homeTeamName: event.homeTeam?.name,
+            homeTeamLogo: homeTeamLogo,
+            awayTeamId: event.awayTeam?.id,
+            awayTeamName: event.awayTeam?.name,
+            awayTeamLogo: awayTeamLogo,
+            startingAt: event.startTimestamp 
+              ? new Date(event.startTimestamp * 1000)
+              : new Date(Date.now() + 86400000),
+            stateId: event.status?.code,
+            stateName: event.status?.type || event.status?.description,
+            leagueId: event.tournament?.uniqueTournament?.id,
+            leagueName: event.tournament?.uniqueTournament?.name,
+          };
+        }
+
+        const [newFixture] = await db
+          .insert(fixtures)
+          .values(fixtureData)
+          .returning();
+        fixtureId = newFixture.id;
+      } catch (error) {
+        console.error("Error fetching fixture data from SofaScore:", error);
+        // Fallback to minimal fixture if API call fails
+        const [newFixture] = await db
+          .insert(fixtures)
+          .values({
+            apiId: validatedData.fixtureApiId,
+            name: "Match",
+            startingAt: new Date(Date.now() + 86400000),
+          })
+          .returning();
+        fixtureId = newFixture.id;
+      }
     }
 
     // Create prediction and deduct coins
@@ -141,9 +191,34 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    // Get predictions with fixture data using a join
     const userPredictions = await db
-      .select()
+      .select({
+        id: predictions.id,
+        userId: predictions.userId,
+        fixtureId: predictions.fixtureId,
+        fixtureApiId: predictions.fixtureApiId,
+        predictedHomeScore: predictions.predictedHomeScore,
+        predictedAwayScore: predictions.predictedAwayScore,
+        coinsWagered: predictions.coinsWagered,
+        coinsWon: predictions.coinsWon,
+        verdict: predictions.verdict,
+        isSettled: predictions.isSettled,
+        createdAt: predictions.createdAt,
+        updatedAt: predictions.updatedAt,
+        fixture: {
+          homeTeamName: fixtures.homeTeamName,
+          awayTeamName: fixtures.awayTeamName,
+          homeTeamLogo: fixtures.homeTeamLogo,
+          awayTeamLogo: fixtures.awayTeamLogo,
+          homeScore: fixtures.homeScore,
+          awayScore: fixtures.awayScore,
+          stateName: fixtures.stateName,
+          startingAt: fixtures.startingAt,
+        },
+      })
       .from(predictions)
+      .leftJoin(fixtures, eq(predictions.fixtureId, fixtures.id))
       .where(eq(predictions.userId, currentUser.userId))
       .orderBy(sql`${predictions.createdAt} DESC`);
 

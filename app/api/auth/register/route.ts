@@ -26,6 +26,20 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Check if nickname is already taken
+    const existingNickname = await db
+      .select()
+      .from(users)
+      .where(eq(users.nickname, validatedData.nickname))
+      .limit(1);
+
+    if (existingNickname.length > 0) {
+      return NextResponse.json(
+        { error: "Nickname is already taken" },
+        { status: 400 }
+      );
+    }
+
     // Hash password
     const hashedPassword = await hashPassword(validatedData.password);
 
@@ -34,12 +48,14 @@ export async function POST(request: NextRequest) {
       .insert(users)
       .values({
         email: validatedData.email,
+        nickname: validatedData.nickname,
         password: hashedPassword,
         coins: 100, // Starting coins
       })
       .returning({
         id: users.id,
         email: users.email,
+        nickname: users.nickname,
         coins: users.coins,
       });
 
@@ -58,6 +74,7 @@ export async function POST(request: NextRequest) {
         user: {
           id: newUser.id,
           email: newUser.email,
+          nickname: newUser.nickname,
           coins: newUser.coins,
         },
       },

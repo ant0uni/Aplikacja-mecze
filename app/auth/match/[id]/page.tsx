@@ -95,16 +95,34 @@ export default function MatchPage() {
   const [isPredictionDialogOpen, setIsPredictionDialogOpen] = useState(false);
   const [leagueMatches, setLeagueMatches] = useState<any[]>([]);
   const [liveMatches, setLiveMatches] = useState<any[]>([]);
+  const [hasUserPredicted, setHasUserPredicted] = useState(false);
 
   useEffect(() => {
     console.log("Match page params:", params);
     console.log("Match ID:", params.id);
     if (params.id) {
       fetchMatchDetails();
+      checkUserPrediction();
     } else {
       console.error("No match ID in params!");
     }
   }, [params.id]);
+
+  const checkUserPrediction = async () => {
+    try {
+      const response = await fetch("/api/predictions");
+      if (response.ok) {
+        const data = await response.json();
+        const userPredictions = data.predictions || [];
+        const hasPredicted = userPredictions.some(
+          (p: any) => p.fixture?.api_id === parseInt(params.id as string)
+        );
+        setHasUserPredicted(hasPredicted);
+      }
+    } catch (error) {
+      console.error("Failed to check user predictions:", error);
+    }
+  };
 
   const fetchMatchDetails = async () => {
     try {
@@ -1048,9 +1066,15 @@ export default function MatchPage() {
         {/* Action Buttons */}
         <div className="flex gap-2 justify-center flex-wrap">
           {match && isMatchActive(match) && (
-            <Button onClick={handlePredictClick} size="lg" className="bg-gradient-to-r from-yellow-400 to-yellow-600 hover:from-yellow-500 hover:to-yellow-700 text-white font-bold shadow-lg hover:shadow-[0_0_20px_rgba(234,179,8,0.6)] transition-all duration-150">
-              ⚡ Make Prediction
-            </Button>
+            hasUserPredicted ? (
+              <Badge className="bg-green-600 hover:bg-green-700 text-white px-6 py-3 text-base">
+                ✓ Predicted
+              </Badge>
+            ) : (
+              <Button onClick={handlePredictClick} size="lg" className="bg-gradient-to-r from-yellow-400 to-yellow-600 hover:from-yellow-500 hover:to-yellow-700 text-white font-bold shadow-lg hover:shadow-[0_0_20px_rgba(234,179,8,0.6)] transition-all duration-150">
+                ⚡ Make Prediction
+              </Button>
+            )
           )}
           {match.league.id && (
             <Link href={`/auth/league/${match.league.id}`}>
@@ -1077,7 +1101,11 @@ export default function MatchPage() {
               home_team_name: match.home_team.name,
               away_team_name: match.away_team.name,
             }}
-            onSuccess={() => router.refresh()}
+            onSuccess={() => {
+              router.refresh();
+              setHasUserPredicted(true);
+              setIsPredictionDialogOpen(false);
+            }}
           />
         )}
       </div>

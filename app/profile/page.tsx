@@ -12,11 +12,23 @@ import { toast } from "sonner";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { BADGE_DEFINITIONS } from "@/lib/badges";
+import { AVATARS, BACKGROUNDS, FRAMES } from "@/lib/shop-items";
+import { SHOP_ITEMS } from "@/lib/shop-items";
+import Image from "next/image";
 
 interface User {
   id: number;
   email: string;
+  nickname: string;
   coins: number;
+  badges: string[];
+  avatar: string;
+  profileBackground: string;
+  avatarFrame: string;
+  victoryEffect: string;
+  profileTitle: string | null;
+  ownedItems: string[];
   createdAt: string;
 }
 
@@ -28,15 +40,19 @@ interface Prediction {
   predictedAwayScore: number;
   coinsWagered: number;
   coinsWon: number;
+  verdict: string;
   isSettled: boolean;
   createdAt: string;
-  matchData?: {
-    homeTeam: string;
-    awayTeam: string;
+  fixture?: {
+    homeTeamName: string | null;
+    awayTeamName: string | null;
+    homeTeamLogo: string | null;
+    awayTeamLogo: string | null;
     homeScore: number | null;
     awayScore: number | null;
-    status: string;
-  };
+    stateName: string | null;
+    startingAt: string | null;
+  } | null;
 }
 
 export default function ProfilePage() {
@@ -44,13 +60,20 @@ export default function ProfilePage() {
   const [user, setUser] = useState<User | null>(null);
   const [predictions, setPredictions] = useState<Prediction[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [checkingPredictions, setCheckingPredictions] = useState<{ [key: number]: boolean }>({});
+  const [isSettling, setIsSettling] = useState(false);
   const [coinsToAdd, setCoinsToAdd] = useState("");
   const [isAddingCoins, setIsAddingCoins] = useState(false);
+  const [selectedBadge, setSelectedBadge] = useState("");
+  const [isAddingBadge, setIsAddingBadge] = useState(false);
+  const [isEquipping, setIsEquipping] = useState(false);
 
   useEffect(() => {
-    fetchUser();
-    fetchPredictions();
+    const initializeProfile = async () => {
+      await fetchUser();
+      await fetchPredictions();
+      await settlePendingPredictions();
+    };
+    initializeProfile();
   }, []);
 
   const fetchUser = async () => {
@@ -73,131 +96,42 @@ export default function ProfilePage() {
       if (response.ok) {
         const data = await response.json();
         const predictions = data.predictions || [];
+        console.log("Fetched predictions:", predictions);
+        console.log("Sample prediction fixture data:", predictions[0]?.fixture);
         setPredictions(predictions);
-        
-        // Auto-check all predictions after fetching
-        await autoCheckAllPredictions(predictions);
       }
     } catch (error) {
       console.error("Failed to fetch predictions:", error);
     }
   };
 
-  const autoCheckAllPredictions = async (predictionsToCheck: Prediction[]) => {
-    console.log("Auto-checking all predictions...");
-    
-    for (const prediction of predictionsToCheck) {
-      try {
-        // Fetch match data from SofaScore
-        const response = await fetch(`https://www.sofascore.com/api/v1/event/${prediction.fixtureApiId}`);
-        
-        if (!response.ok) {
-          console.log(`Could not fetch data for match ${prediction.fixtureApiId}`);
-          continue;
-        }
-        
-        const data = await response.json();
-        const event = data.event;
-        
-        const homeScore = event.homeScore?.current ?? event.homeScore?.display ?? null;
-        const awayScore = event.awayScore?.current ?? event.awayScore?.display ?? null;
-        const status = event.status?.description || event.status?.type || 'Unknown';
-        
-        // Update prediction with match data
-        const updatedPrediction = {
-          ...prediction,
-          matchData: {
-            homeTeam: event.homeTeam?.name || 'Home',
-            awayTeam: event.awayTeam?.name || 'Away',
-            homeScore,
-            awayScore,
-            status,
-          }
-        };
-        
-        // Update in state
-        setPredictions(prev => prev.map(p => p.id === prediction.id ? updatedPrediction : p));
-        
-        // Small delay to avoid rate limiting
-        await new Promise(resolve => setTimeout(resolve, 100));
-        
-      } catch (error) {
-        console.error(`Failed to check prediction ${prediction.id}:`, error);
-      }
-    }
-    
-    console.log("Auto-check completed for all predictions");
-  };
-
-  const checkPredictionResult = async (prediction: Prediction) => {
-    setCheckingPredictions(prev => ({ ...prev, [prediction.id]: true }));
-    
+  const settlePendingPredictions = async () => {
+    setIsSettling(true);
     try {
-      // Fetch match data from SofaScore
-      const response = await fetch(`https://www.sofascore.com/api/v1/event/${prediction.fixtureApiId}`);
-      
-      if (!response.ok) {
-        toast.error("Could not fetch match data. The match might not be available.");
-        return;
-      }
-      
-      const data = await response.json();
-      const event = data.event;
-      
-      const homeScore = event.homeScore?.current ?? event.homeScore?.display ?? null;
-      const awayScore = event.awayScore?.current ?? event.awayScore?.display ?? null;
-      const status = event.status?.description || event.status?.type || 'Unknown';
-      const isFinished = event.status?.code === 100 || status.toLowerCase().includes('finished') || status.toLowerCase().includes('ft');
-      
-      // Update prediction with match data
-      const updatedPrediction = {
-        ...prediction,
-        matchData: {
-          homeTeam: event.homeTeam?.name || 'Home',
-          awayTeam: event.awayTeam?.name || 'Away',
-          homeScore,
-          awayScore,
-          status,
+      const response = await fetch("/api/predictions/settle", {
+        method: "POST",
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        
+        if (data.settledCount > 0) {
+          toast.success(
+            `Settled ${data.settledCount} prediction${data.settledCount > 1 ? 's' : ''}! ${
+              data.totalCoinsWon > 0 ? `You won ${data.totalCoinsWon} coins!` : ''
+            }`
+          );
+          
+          // Refresh user data and predictions after settlement
+          await fetchUser();
+          await fetchPredictions();
         }
-      };
-      
-      // Update in state
-      setPredictions(prev => prev.map(p => p.id === prediction.id ? updatedPrediction : p));
-      
-      if (!isFinished) {
-        toast.info(`Match Status: ${status} - This match is not finished yet. Current score: ${homeScore ?? '-'} - ${awayScore ?? '-'}`);
-        return;
       }
-      
-      if (homeScore === null || awayScore === null) {
-        toast.warning("Match is finished but scores are not available.");
-        return;
-      }
-      
-      // Check if prediction was correct
-      const predictionCorrect = prediction.predictedHomeScore === homeScore && 
-                                prediction.predictedAwayScore === awayScore;
-      
-      const resultMessage = predictionCorrect 
-        ? `🎉 YOU WON! Your Prediction: ${prediction.predictedHomeScore} - ${prediction.predictedAwayScore} | Actual Score: ${homeScore} - ${awayScore}. You should have won ${prediction.coinsWagered * 2} coins!`
-        : `😔 YOU LOST - Your Prediction: ${prediction.predictedHomeScore} - ${prediction.predictedAwayScore} | Actual Score: ${homeScore} - ${awayScore}. Better luck next time!`;
-      
-      if (predictionCorrect) {
-        toast.success(resultMessage, { duration: 5000 });
-      } else {
-        toast.error(resultMessage, { duration: 5000 });
-      }
-      
-      // If prediction is not settled but should be, suggest updating
-      if (!prediction.isSettled && predictionCorrect) {
-        toast.warning("Please contact an administrator to settle this prediction manually.", { duration: 5000 });
-      }
-      
     } catch (error) {
-      console.error("Failed to check prediction:", error);
-      toast.error("Failed to check prediction result. Please try again.");
+      console.error("Failed to settle predictions:", error);
     } finally {
-      setCheckingPredictions(prev => ({ ...prev, [prediction.id]: false }));
+      setIsSettling(false);
+      setIsLoading(false);
     }
   };
 
@@ -244,16 +178,85 @@ export default function ProfilePage() {
     }
   };
 
+  const handleAddBadge = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!selectedBadge) {
+      toast.error("Please select a badge");
+      return;
+    }
+
+    setIsAddingBadge(true);
+    try {
+      const response = await fetch("/api/user/badges", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ badgeId: selectedBadge }),
+      });
+
+      if (response.ok) {
+        toast.success("Badge added successfully!");
+        setSelectedBadge("");
+        await fetchUser(); // Refresh user data
+      } else {
+        const data = await response.json();
+        toast.error(data.error || "Failed to add badge");
+      }
+    } catch (error) {
+      console.error("Failed to add badge:", error);
+      toast.error("Failed to add badge");
+    } finally {
+      setIsAddingBadge(false);
+    }
+  };
+
+  const handleEquipItem = async (itemId: string, category: string) => {
+    setIsEquipping(true);
+    try {
+      const response = await fetch("/api/shop/equip", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ itemId, category }),
+      });
+
+      if (response.ok) {
+        toast.success("Item equipped!");
+        await fetchUser(); // Refresh user data
+      } else {
+        const data = await response.json();
+        toast.error(data.error || "Failed to equip item");
+      }
+    } catch (error) {
+      console.error("Failed to equip item:", error);
+      toast.error("Failed to equip item");
+    } finally {
+      setIsEquipping(false);
+    }
+  };
+
   const totalWagered = predictions.reduce((sum, p) => sum + p.coinsWagered, 0);
   const totalWon = predictions.reduce((sum, p) => sum + p.coinsWon, 0);
   const settledPredictions = predictions.filter(p => p.isSettled);
   const pendingPredictions = predictions.filter(p => !p.isSettled);
   const successfulPredictions = predictions.filter(p => p.isSettled && p.coinsWon > 0);
 
+  // Get customization
+  const avatarStyle = AVATARS[user?.avatar || 'default'] || AVATARS.default;
+  const backgroundStyle = BACKGROUNDS[user?.profileBackground || 'default'] || BACKGROUNDS.default;
+  const frameStyle = FRAMES[user?.avatarFrame || 'none'] || FRAMES.none;
+  const profileTitleData = user?.profileTitle 
+    ? SHOP_ITEMS.find(item => item.id === user.profileTitle) 
+    : null;
+
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin" />
+        <div className="text-center space-y-4">
+          <Loader2 className="h-8 w-8 animate-spin mx-auto" />
+          {isSettling && (
+            <p className="text-muted-foreground">Checking prediction results...</p>
+          )}
+        </div>
       </div>
     );
   }
@@ -268,11 +271,14 @@ export default function ProfilePage() {
               <ArrowLeft className="h-4 w-4" />
             </Button>
             <div>
-              <h1 className="text-3xl font-bold">Profile & Settings</h1>
-              <p className="text-muted-foreground">Manage your account and view statistics</p>
+              <h1 className="text-3xl font-bold">Profile</h1>
+              <p className="text-muted-foreground">View your stats and predictions</p>
             </div>
           </div>
           <div className="flex items-center gap-2">
+            <Button variant="outline" onClick={() => router.push('/auth/shop')}>
+              🛒 Shop
+            </Button>
             <ThemeToggle />
             <Button onClick={handleLogout} variant="outline" size="icon" title="Logout">
               <LogOut className="h-5 w-5" />
@@ -280,8 +286,190 @@ export default function ProfilePage() {
           </div>
         </div>
 
+        {/* Profile Banner */}
+        <Card className={`bg-gradient-to-r ${backgroundStyle.gradient} text-white`}>
+          <CardContent className="p-8">
+            <div className="flex items-center gap-6">
+              {/* Avatar */}
+              <div className="flex-shrink-0">
+                <div className={`w-24 h-24 rounded-full bg-gradient-to-br ${avatarStyle.gradient} backdrop-blur-sm ${frameStyle.border} ${frameStyle.shadow} flex items-center justify-center text-4xl font-bold`}>
+                  {avatarStyle.icon || (user?.nickname ? user.nickname.substring(0, 2).toUpperCase() : "??")}
+                </div>
+              </div>
+              
+              {/* User Info */}
+              <div className="flex-1">
+                <div className="flex items-center gap-2 mb-2">
+                  <h2 className="text-3xl font-bold">{user?.nickname || "Player"}</h2>
+                  {profileTitleData && (
+                    <Badge variant="secondary" className="text-xs">
+                      {profileTitleData.icon} {profileTitleData.namePolish}
+                    </Badge>
+                  )}
+                </div>
+                <p className="text-white/90 mb-4">{user?.email}</p>
+                <div className="flex items-center gap-6">
+                  <div>
+                    <p className="text-white/80 text-sm">Balance</p>
+                    <p className="text-2xl font-bold">{user?.coins} 🪙</p>
+                  </div>
+                  <div>
+                    <p className="text-white/80 text-sm">Member Since</p>
+                    <p className="text-lg font-semibold">
+                      {user?.createdAt ? new Date(user.createdAt).toLocaleDateString() : "N/A"}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-white/80 text-sm">Total Predictions</p>
+                    <p className="text-lg font-semibold">{predictions.length}</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Badges Section */}
+        {user && user.badges && user.badges.length > 0 && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Badges</CardTitle>
+              <CardDescription>Your earned achievements</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="flex flex-wrap gap-3">
+                {user.badges.map((badgeId) => {
+                  const badge = BADGE_DEFINITIONS[badgeId];
+                  if (!badge) return null;
+                  return (
+                    <motion.div
+                      key={badgeId}
+                      whileHover={{ scale: 1.05, y: -2 }}
+                      className={`flex items-center gap-2 px-4 py-2 rounded-lg border ${badge.color}`}
+                    >
+                      <span className="text-2xl">{badge.icon}</span>
+                      <div>
+                        <p className="font-semibold text-sm">{badge.name}</p>
+                        <p className="text-xs opacity-80">{badge.description}</p>
+                      </div>
+                    </motion.div>
+                  );
+                })}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Inventory Section */}
+        {user && user.ownedItems && user.ownedItems.length > 0 && (
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle>My Inventory</CardTitle>
+                  <CardDescription>Items you own - click to equip</CardDescription>
+                </div>
+                <Button variant="outline" onClick={() => router.push('/auth/shop')}>
+                  🛒 Visit Shop
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {user.ownedItems.map((itemId) => {
+                  const item = SHOP_ITEMS.find((i) => i.id === itemId);
+                  if (!item) return null;
+
+                  const isEquipped = 
+                    (item.category === 'avatar' && user.avatar === itemId) ||
+                    (item.category === 'background' && user.profileBackground === itemId) ||
+                    (item.category === 'frame' && user.avatarFrame === itemId) ||
+                    (item.category === 'effect' && user.victoryEffect === itemId) ||
+                    (item.category === 'title' && user.profileTitle === itemId);
+
+                  return (
+                    <motion.div
+                      key={itemId}
+                      whileHover={{ scale: 1.02 }}
+                      className={`border rounded-lg p-4 cursor-pointer transition-all ${
+                        isEquipped ? 'border-primary bg-primary/5' : 'hover:border-primary/50'
+                      }`}
+                      onClick={() => !isEquipping && handleEquipItem(itemId, item.category)}
+                    >
+                      <div className="flex items-start gap-3">
+                        <span className="text-3xl">{item.icon}</span>
+                        <div className="flex-1">
+                          <div className="flex items-center justify-between mb-1">
+                            <h4 className="font-semibold text-sm">{item.namePolish}</h4>
+                            {isEquipped && (
+                              <Badge variant="default" className="text-xs">
+                                Equipped
+                              </Badge>
+                            )}
+                          </div>
+                          <p className="text-xs text-muted-foreground mb-2">{item.description}</p>
+                          <Badge variant="outline" className="text-xs">
+                            {item.category.charAt(0).toUpperCase() + item.category.slice(1)}
+                          </Badge>
+                        </div>
+                      </div>
+                    </motion.div>
+                  );
+                })}
+              </div>
+              
+              {/* Unequip Options */}
+              <div className="mt-4 pt-4 border-t space-y-2">
+                <p className="text-sm font-semibold mb-2">Quick Actions:</p>
+                <div className="flex flex-wrap gap-2">
+                  {user.avatar !== 'default' && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => handleEquipItem('default', 'avatar')}
+                      disabled={isEquipping}
+                    >
+                      Reset Avatar
+                    </Button>
+                  )}
+                  {user.profileBackground !== 'default' && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => handleEquipItem('default', 'background')}
+                      disabled={isEquipping}
+                    >
+                      Reset Background
+                    </Button>
+                  )}
+                  {user.avatarFrame !== 'none' && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => handleEquipItem('none', 'frame')}
+                      disabled={isEquipping}
+                    >
+                      Remove Frame
+                    </Button>
+                  )}
+                  {user.profileTitle && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => handleEquipItem('none', 'title')}
+                      disabled={isEquipping}
+                    >
+                      Remove Title
+                    </Button>
+                  )}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         {/* Account Info */}
-        <Card>
+        <Card className="hidden">
           <CardHeader>
             <CardTitle>Account Information</CardTitle>
             <CardDescription>Your account details</CardDescription>
@@ -405,8 +593,31 @@ export default function ProfilePage() {
         {/* Recent Predictions */}
         <Card>
           <CardHeader>
-            <CardTitle>Recent Predictions</CardTitle>
-            <CardDescription>Your latest betting activity</CardDescription>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle>Recent Predictions</CardTitle>
+                <CardDescription>Your latest betting activity</CardDescription>
+              </div>
+              {pendingPredictions.length > 0 && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={async () => {
+                    await settlePendingPredictions();
+                  }}
+                  disabled={isSettling}
+                >
+                  {isSettling ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Checking...
+                    </>
+                  ) : (
+                    '🔄 Check Pending'
+                  )}
+                </Button>
+              )}
+            </div>
           </CardHeader>
           <CardContent>
             {predictions.length === 0 ? (
@@ -416,86 +627,121 @@ export default function ProfilePage() {
             ) : (
               <div className="space-y-3">
                 {predictions.slice(0, 10).map((prediction) => (
-                  <div
+                  <motion.div
                     key={prediction.id}
-                    className="border rounded-lg p-3 space-y-3"
+                    className="border rounded-lg p-4 space-y-3 cursor-pointer hover:shadow-lg hover:border-primary/50 transition-all"
+                    onClick={() => router.push(`/match/${prediction.fixtureApiId}`)}
+                    whileHover={{ scale: 1.01 }}
                   >
-                    <div className="flex items-center justify-between">
-                      <div className="flex-1">
-                        <p className="font-semibold">
-                          Prediction: {prediction.predictedHomeScore} - {prediction.predictedAwayScore}
-                        </p>
-                        {prediction.matchData && (
-                          <p className="text-sm text-muted-foreground">
-                            {prediction.matchData.homeTeam} vs {prediction.matchData.awayTeam}
-                          </p>
-                        )}
-                        <p className="text-sm text-muted-foreground">
-                          {new Date(prediction.createdAt).toLocaleDateString()}
-                        </p>
+                    {/* Match Header with Teams */}
+                    <div className="flex items-center justify-between gap-4">
+                      <div className="flex-1 flex items-center gap-3">
+                        {/* Home Team */}
+                        <div className="flex items-center gap-2 flex-1">
+                          {prediction.fixture?.homeTeamLogo ? (
+                            <Image 
+                              src={prediction.fixture.homeTeamLogo} 
+                              alt={prediction.fixture.homeTeamName || 'Home'}
+                              width={32}
+                              height={32}
+                              className="rounded-full object-cover"
+                              onError={(e) => {
+                                // Hide image on error and show fallback
+                                e.currentTarget.style.display = 'none';
+                              }}
+                            />
+                          ) : (
+                            <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center text-xs font-bold">
+                              H
+                            </div>
+                          )}
+                          <span className="font-semibold text-sm">
+                            {prediction.fixture?.homeTeamName || 'Home Team'}
+                          </span>
+                        </div>
+                        
+                        {/* Score Display */}
+                        <div className="flex flex-col items-center px-4 py-2 bg-muted rounded-lg min-w-[120px]">
+                          <div className="text-xs text-muted-foreground mb-1">Your Prediction</div>
+                          <div className="text-2xl font-bold">
+                            {prediction.predictedHomeScore} - {prediction.predictedAwayScore}
+                          </div>
+                        </div>
+                        
+                        {/* Away Team */}
+                        <div className="flex items-center gap-2 flex-1 justify-end">
+                          <span className="font-semibold text-sm">
+                            {prediction.fixture?.awayTeamName || 'Away Team'}
+                          </span>
+                          {prediction.fixture?.awayTeamLogo ? (
+                            <Image 
+                              src={prediction.fixture.awayTeamLogo} 
+                              alt={prediction.fixture.awayTeamName || 'Away'}
+                              width={32}
+                              height={32}
+                              className="rounded-full object-cover"
+                              onError={(e) => {
+                                // Hide image on error and show fallback
+                                e.currentTarget.style.display = 'none';
+                              }}
+                            />
+                          ) : (
+                            <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center text-xs font-bold">
+                              A
+                            </div>
+                          )}
+                        </div>
                       </div>
-                      <div className="text-right space-y-1">
-                        <p className="text-sm font-semibold">
-                          Wagered: {prediction.coinsWagered} coins
-                        </p>
+                    </div>
+
+                    {/* Match Info Row */}
+                    <div className="flex items-center justify-between text-sm text-muted-foreground border-t pt-2">
+                      <div className="flex items-center gap-4">
+                        <span>
+                          📅 {prediction.fixture?.startingAt 
+                            ? new Date(prediction.fixture.startingAt).toLocaleDateString('en-US', { 
+                                month: 'short', 
+                                day: 'numeric',
+                                hour: '2-digit',
+                                minute: '2-digit'
+                              })
+                            : new Date(prediction.createdAt).toLocaleDateString()}
+                        </span>
+                        <span>💰 Wagered: {prediction.coinsWagered} coins</span>
+                      </div>
+                      <div>
                         {prediction.isSettled ? (
                           <Badge variant={prediction.coinsWon > 0 ? "default" : "destructive"}>
-                            {prediction.coinsWon > 0 ? `Won ${prediction.coinsWon}` : 'Lost'}
+                            {prediction.coinsWon > 0 ? `Won ${prediction.coinsWon} coins` : 'Lost'}
                           </Badge>
                         ) : (
-                          <Badge variant="secondary">Pending</Badge>
+                          <Badge variant="secondary">⏳ Pending</Badge>
                         )}
                       </div>
                     </div>
                     
                     {/* Match Result Display */}
-                    {prediction.matchData && (
+                    {prediction.fixture && prediction.fixture.homeScore !== null && prediction.fixture.awayScore !== null && (
                       <div className="pt-2 border-t">
-                        <div className="flex items-center justify-between text-sm">
-                          <span className="text-muted-foreground">Match Result:</span>
-                          <span className="font-semibold">
-                            {prediction.matchData.homeScore !== null && prediction.matchData.awayScore !== null
-                              ? `${prediction.matchData.homeScore} - ${prediction.matchData.awayScore}`
-                              : prediction.matchData.status}
-                          </span>
-                        </div>
-                        {prediction.matchData.homeScore !== null && prediction.matchData.awayScore !== null && (
-                          <div className="mt-1">
-                            {prediction.predictedHomeScore === prediction.matchData.homeScore && 
-                             prediction.predictedAwayScore === prediction.matchData.awayScore ? (
-                              <Badge variant="default" className="text-xs">✓ Correct Prediction!</Badge>
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm text-muted-foreground">Actual Result:</span>
+                            <span className="font-bold text-lg">
+                              {prediction.fixture.homeScore} - {prediction.fixture.awayScore}
+                            </span>
+                          </div>
+                          <div>
+                            {prediction.predictedHomeScore === prediction.fixture.homeScore && 
+                             prediction.predictedAwayScore === prediction.fixture.awayScore ? (
+                              <Badge variant="default" className="text-xs">✓ Perfect Prediction!</Badge>
                             ) : (
                               <Badge variant="destructive" className="text-xs">✗ Incorrect</Badge>
                             )}
                           </div>
-                        )}
+                        </div>
                       </div>
                     )}
-                    
-                    {/* Check Result Button */}
-                    {!prediction.isSettled && (
-                      <div className="pt-2 border-t">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="w-full"
-                          onClick={() => checkPredictionResult(prediction)}
-                          disabled={checkingPredictions[prediction.id]}
-                        >
-                          {checkingPredictions[prediction.id] ? (
-                            <>
-                              <Loader2 className="mr-2 h-3 w-3 animate-spin" />
-                              Checking...
-                            </>
-                          ) : (
-                            <>
-                              🔍 Check Result Manually
-                            </>
-                          )}
-                        </Button>
-                      </div>
-                    )}
-                  </div>
+                  </motion.div>
                 ))}
               </div>
             )}
@@ -532,38 +778,77 @@ export default function ProfilePage() {
           </CardContent>
         </Card>
 
-        {/* Developer Tools - Add Coins */}
+        {/* Developer Tools */}
         <Card>
           <CardHeader>
             <CardTitle>Developer Tools</CardTitle>
             <CardDescription>Testing features</CardDescription>
           </CardHeader>
-          <CardContent>
-            <form onSubmit={handleAddCoins} className="flex gap-2">
-              <div className="flex-1">
-                <Label htmlFor="coins" className="sr-only">
+          <CardContent className="space-y-4">
+            {/* Add Coins */}
+            <div>
+              <h3 className="font-semibold mb-2">Add Coins</h3>
+              <form onSubmit={handleAddCoins} className="flex gap-2">
+                <div className="flex-1">
+                  <Label htmlFor="coins" className="sr-only">
+                    Add Coins
+                  </Label>
+                  <Input
+                    id="coins"
+                    type="number"
+                    placeholder="Enter amount to add"
+                    value={coinsToAdd}
+                    onChange={(e) => setCoinsToAdd(e.target.value)}
+                    disabled={isAddingCoins}
+                    min="1"
+                  />
+                </div>
+                <Button type="submit" disabled={isAddingCoins}>
+                  {isAddingCoins ? (
+                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                  ) : null}
                   Add Coins
-                </Label>
-                <Input
-                  id="coins"
-                  type="number"
-                  placeholder="Enter amount to add"
-                  value={coinsToAdd}
-                  onChange={(e) => setCoinsToAdd(e.target.value)}
-                  disabled={isAddingCoins}
-                  min="1"
-                />
-              </div>
-              <Button type="submit" disabled={isAddingCoins}>
-                {isAddingCoins ? (
-                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                ) : null}
-                Add Coins
-              </Button>
-            </form>
-            <p className="text-xs text-muted-foreground mt-2">
-              Temporary feature: Add coins manually for testing
-            </p>
+                </Button>
+              </form>
+              <p className="text-xs text-muted-foreground mt-2">
+                Temporary feature: Add coins manually for testing
+              </p>
+            </div>
+
+            {/* Add Badge */}
+            <div className="pt-4 border-t">
+              <h3 className="font-semibold mb-2">Add Badge</h3>
+              <form onSubmit={handleAddBadge} className="flex gap-2">
+                <div className="flex-1">
+                  <Label htmlFor="badge" className="sr-only">
+                    Select Badge
+                  </Label>
+                  <select
+                    id="badge"
+                    value={selectedBadge}
+                    onChange={(e) => setSelectedBadge(e.target.value)}
+                    disabled={isAddingBadge}
+                    className="w-full h-10 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  >
+                    <option value="">Select a badge...</option>
+                    {Object.entries(BADGE_DEFINITIONS).map(([id, badge]) => (
+                      <option key={id} value={id}>
+                        {badge.icon} {badge.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <Button type="submit" disabled={isAddingBadge || !selectedBadge}>
+                  {isAddingBadge ? (
+                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                  ) : null}
+                  Add Badge
+                </Button>
+              </form>
+              <p className="text-xs text-muted-foreground mt-2">
+                Test feature: Add badges to your profile (in future, users can earn or buy badges)
+              </p>
+            </div>
           </CardContent>
         </Card>
       </div>

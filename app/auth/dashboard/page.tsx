@@ -25,11 +25,13 @@ const FixtureCard = React.memo(({
   isMatchActive, 
   onPredictClick,
   onCountryClick,
+  userPredictions,
 }: { 
   fixture: Fixture; 
   isMatchActive: (fixture: Fixture) => boolean;
   onPredictClick: (fixture: Fixture) => void;
   onCountryClick: (country: string) => void;
+  userPredictions: number[];
 }) => {
   return (
     <Link href={`/auth/match/${fixture.api_id}`}>
@@ -143,7 +145,7 @@ const FixtureCard = React.memo(({
                 <Calendar className="h-3 w-3" />
                 {new Date(fixture.starting_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
               </div>
-              {isMatchActive(fixture) && (
+              {isMatchActive(fixture) && !userPredictions.includes(fixture.api_id) && (
                 <Button
                   size="sm"
                   className="bg-gradient-to-r from-yellow-400 to-yellow-600 hover:from-yellow-500 hover:to-yellow-700 text-white font-bold shadow-lg hover:shadow-[0_0_20px_rgba(234,179,8,0.6)] transition-all duration-150"
@@ -411,6 +413,7 @@ const getCountryCode = (countryName: string): string => {
 interface User {
   id: number;
   email: string;
+  nickname?: string;
   coins: number;
 }
 
@@ -451,6 +454,7 @@ export default function DashboardPage() {
   const [user, setUser] = useState<User | null>(null);
   const [fixtures, setFixtures] = useState<Fixture[]>([]);
   const [leagues, setLeagues] = useState<League[]>([]);
+  const [userPredictions, setUserPredictions] = useState<number[]>([]); // Array of fixture API IDs user has predicted
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadingFixtures, setIsLoadingFixtures] = useState(false);
   const [coinsToAdd, setCoinsToAdd] = useState("");
@@ -573,12 +577,16 @@ export default function DashboardPage() {
       });
     }
     
-    // Apply team search filter
+    // Apply search filter (team names, league names, country names, match names)
     if (debouncedSearch) {
       const searchLower = debouncedSearch.toLowerCase();
       filtered = filtered.filter((fixture) => 
         fixture.home_team_name?.toLowerCase().includes(searchLower) ||
-        fixture.away_team_name?.toLowerCase().includes(searchLower)
+        fixture.away_team_name?.toLowerCase().includes(searchLower) ||
+        fixture.league_name?.toLowerCase().includes(searchLower) ||
+        fixture.country_name?.toLowerCase().includes(searchLower) ||
+        fixture.name?.toLowerCase().includes(searchLower) ||
+        fixture.venue_name?.toLowerCase().includes(searchLower)
       );
     }
     
@@ -654,10 +662,14 @@ export default function DashboardPage() {
   const [selectedFixture, setSelectedFixture] = useState<Fixture | null>(null);
 
   useEffect(() => {
+    // Clear expired cache on mount to prevent quota issues
+    ApiCache.clearExpired();
+    
     fetchUser();
     fetchPopularMatches();
     fetchFixtures();
     fetchTopPlayers(topLeagues[0].id);
+    fetchUserPredictions();
     
     // Preload all other leagues' data in the background to prevent lag
     // This happens silently and won't affect the UI
@@ -715,6 +727,19 @@ export default function DashboardPage() {
       router.push("/login");
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const fetchUserPredictions = async () => {
+    try {
+      const response = await fetch("/api/predictions");
+      if (response.ok) {
+        const data = await response.json();
+        const predictedFixtureIds = (data.predictions || []).map((p: any) => p.fixtureApiId);
+        setUserPredictions(predictedFixtureIds);
+      }
+    } catch (error) {
+      console.error("Failed to fetch user predictions:", error);
     }
   };
 
@@ -1038,7 +1063,7 @@ export default function DashboardPage() {
               transition={{ delay: 0.3, duration: 0.5 }}
               className="text-muted-foreground mt-1"
             >
-              Welcome to the game, {user?.email}
+              Welcome to the game, {user?.nickname || user?.email}!
             </motion.p>
           </div>
           <motion.div
@@ -1063,6 +1088,11 @@ export default function DashboardPage() {
               <Coins className="h-4 w-4 text-yellow-500" />
               <span className="text-sm font-bold">{user?.coins || 0}</span>
             </div>
+            <Link href="/auth/shop">
+              <Button variant="outline" title="Shop">
+                🛒 Shop
+              </Button>
+            </Link>
             <Link href="/profile">
               <Button variant="outline" size="icon" title="Profile">
                 <User className="h-5 w-5" />
@@ -1284,13 +1314,13 @@ export default function DashboardPage() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            {/* Team Search - Always Visible */}
+            {/* Global Search - Teams, Leagues, Countries */}
             <div className="space-y-2">
               <div className="flex gap-2">
                 <Input
                   id="searchTeam"
                   type="text"
-                  placeholder="Search by team name..."
+                  placeholder="Search teams, leagues, countries..."
                   value={searchTeam}
                   onChange={(e) => setSearchTeam(e.target.value)}
                   className="flex-1"
@@ -1622,6 +1652,7 @@ export default function DashboardPage() {
                                   setShowFilters(true);
                                 }
                               }}
+                              userPredictions={userPredictions}
                             />
                           </motion.div>
                         </React.Fragment>
@@ -1675,6 +1706,7 @@ export default function DashboardPage() {
           onSuccess={() => {
             fetchFixtures();
             fetchUser();
+            fetchUserPredictions();
           }}
         />
 

@@ -3,6 +3,7 @@ import { z } from "zod";
 // Authentication schemas
 export const registerSchema = z.object({
   email: z.string().email("Invalid email address"),
+  nickname: z.string().min(3, "Nickname must be at least 3 characters").max(50, "Nickname must be at most 50 characters"),
   password: z.string().min(8, "Password must be at least 8 characters"),
 });
 
