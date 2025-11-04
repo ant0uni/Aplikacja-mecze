@@ -19,6 +19,8 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { itemId, category } = body;
 
+    console.log("Equip request:", { itemId, category });
+
     if (!itemId || !category) {
       return NextResponse.json(
         { error: "Item ID and category are required" },
@@ -67,9 +69,16 @@ export async function POST(request: NextRequest) {
       case "title":
         updateFields.profileTitle = itemId === "none" ? null : itemId;
         break;
-      default:
+      case "badge":
+        // Badges are handled differently - they're added to the badges array
         return NextResponse.json(
-          { error: "Invalid category" },
+          { error: "Badges cannot be equipped, they are earned or purchased separately" },
+          { status: 400 }
+        );
+      default:
+        console.log("Invalid category received:", category);
+        return NextResponse.json(
+          { error: `Invalid category: ${category}` },
           { status: 400 }
         );
     }

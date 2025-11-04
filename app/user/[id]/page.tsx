@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ArrowLeft, Loader2, Trophy, Target, Coins, Calendar, Award, TrendingUp } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { BADGE_DEFINITIONS } from "@/lib/badges";
+import { AVATARS, BACKGROUNDS, FRAMES, VICTORY_EFFECTS, SHOP_ITEMS } from "@/lib/shop-items";
 
 interface UserProfile {
   id: number;
@@ -68,12 +69,14 @@ export default function PublicUserProfile() {
     return email.substring(0, 2).toUpperCase();
   };
 
-  const getBackgroundStyle = (background: string | null) => {
-    const backgrounds: Record<string, string> = {
-      bg_stadium_night: "bg-gradient-to-br from-slate-900 via-blue-900 to-slate-800",
-    };
-    return backgrounds[background || ""] || "bg-gradient-to-br from-blue-600 via-purple-600 to-pink-600";
-  };
+  // Get customization styles
+  const avatarStyle = AVATARS[user?.avatar || 'default'] || AVATARS.default;
+  const backgroundStyle = BACKGROUNDS[user?.profileBackground || 'default'] || BACKGROUNDS.default;
+  const frameStyle = FRAMES[user?.avatarFrame || 'none'] || FRAMES.none;
+  const victoryEffectStyle = VICTORY_EFFECTS[user?.victoryEffect || 'none'] || VICTORY_EFFECTS.none;
+  const profileTitleData = user?.profileTitle 
+    ? SHOP_ITEMS.find(item => item.id === user.profileTitle) 
+    : null;
 
   if (loading) {
     return (
@@ -112,7 +115,7 @@ export default function PublicUserProfile() {
           className="relative"
         >
           {/* Profile Banner */}
-          <div className={`${getBackgroundStyle(user.profileBackground)} h-48 rounded-t-2xl relative overflow-hidden`}>
+          <div className={`bg-gradient-to-r ${backgroundStyle.gradient} h-48 rounded-t-2xl relative overflow-hidden`}>
             <div className="absolute inset-0 bg-black/20"></div>
           </div>
 
@@ -125,21 +128,18 @@ export default function PublicUserProfile() {
                 animate={{ scale: 1 }}
                 className="relative"
               >
-                <div className="w-32 h-32 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-bold text-4xl border-4 border-card shadow-xl">
-                  {getAvatarInitials(user.nickname, user.email)}
+                <div className={`w-32 h-32 rounded-full bg-gradient-to-br ${avatarStyle.gradient} ${frameStyle.border} ${frameStyle.shadow} ${victoryEffectStyle.animation} ${victoryEffectStyle.glow} flex items-center justify-center text-white font-bold text-4xl border-4 border-card shadow-xl`}>
+                  {avatarStyle.icon || getAvatarInitials(user.nickname, user.email)}
                 </div>
-                {user.avatarFrame && (
-                  <div className="absolute inset-0 rounded-full border-4 border-yellow-500 shadow-lg"></div>
-                )}
               </motion.div>
 
               {/* User Info */}
               <div className="flex-1 text-center sm:text-left sm:mt-16">
                 <div className="flex flex-col sm:flex-row items-center gap-2 mb-2">
                   <h1 className="text-3xl font-bold">{user.nickname || "Anonymous"}</h1>
-                  {user.profileTitle && (
-                    <Badge variant="outline" className="text-sm">
-                      {user.profileTitle}
+                  {profileTitleData && (
+                    <Badge variant="secondary" className="text-xs">
+                      {profileTitleData.icon} {profileTitleData.namePolish}
                     </Badge>
                   )}
                 </div>

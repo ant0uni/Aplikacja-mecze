@@ -482,9 +482,12 @@ export default function DashboardPage() {
   
   // Top players data
   const [topPlayers, setTopPlayers] = useState<any[]>([]);
-  const [isLoadingPlayers, setIsLoadingPlayers] = useState(false);
+  const [topPlayersCache, setTopPlayersCache] = useState<Record<number, any[]>>({}); // Cache players by league ID
+  const [isLoadingPlayers, setIsLoadingPlayers] = useState(true); // Only true on initial load
   const [currentLeagueIndex, setCurrentLeagueIndex] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
+  const [fetchingLeague, setFetchingLeague] = useState<number | null>(null); // Track which league is being fetched
+  const [autoRotateEnabled, setAutoRotateEnabled] = useState(false); // Control auto-rotation
   
   // League rotation configuration
   const topLeagues = [
@@ -668,20 +671,27 @@ export default function DashboardPage() {
     fetchUser();
     fetchPopularMatches();
     fetchFixtures();
-    fetchTopPlayers(topLeagues[0].id);
     fetchUserPredictions();
+    
+    // Fetch initial top players with loading indicator
+    fetchTopPlayers(topLeagues[0].id, true);
     
     // Preload all other leagues' data in the background to prevent lag
     // This happens silently and won't affect the UI
     setTimeout(() => {
       topLeagues.slice(1).forEach((league, index) => {
-        // Stagger the preloading by 200ms each to avoid overwhelming the API
+        // Stagger the preloading by 300ms each to avoid overwhelming the API
         setTimeout(() => {
-          fetchTopPlayers(league.id);
-        }, index * 200);
+          fetchTopPlayers(league.id, false); // false = no loading spinner
+        }, index * 300);
       });
-    }, 1000); // Wait 1 second before starting preload
-  }, []);
+      
+      // Enable auto-rotation after preloading is complete
+      setTimeout(() => {
+        setAutoRotateEnabled(true);
+      }, topLeagues.length * 300 + 500);
+    }, 1500); // Wait 1.5 seconds before starting preload
+  }, []); // Empty dependency array - only run once on mount
 
   // Debounce search input for performance
   useEffect(() => {
@@ -693,18 +703,19 @@ export default function DashboardPage() {
 
   // Auto-rotate top players every 3.5 seconds
   useEffect(() => {
-    if (isPaused) return;
+    if (isPaused || !autoRotateEnabled) return;
 
     const interval = setInterval(() => {
       setCurrentLeagueIndex((prev) => {
         const nextIndex = (prev + 1) % topLeagues.length;
-        fetchTopPlayers(topLeagues[nextIndex].id);
+        // Fetch uses cache if available, no loading spinner
+        fetchTopPlayers(topLeagues[nextIndex].id, false);
         return nextIndex;
       });
     }, 3500);
 
     return () => clearInterval(interval);
-  }, [isPaused]);
+  }, [isPaused, autoRotateEnabled]);
 
   // Refresh data when date changes
   useEffect(() => {
@@ -923,8 +934,25 @@ export default function DashboardPage() {
     }
   };
 
-  const fetchTopPlayers = async (leagueId: number) => {
-    setIsLoadingPlayers(true);
+  const fetchTopPlayers = async (leagueId: number, isInitialLoad = false) => {
+    // Check if we already have cached data for this league
+    if (topPlayersCache[leagueId] && !isInitialLoad) {
+      // Use cached data immediately for smooth transition
+      setTopPlayers(topPlayersCache[leagueId]);
+      return;
+    }
+    
+    // Prevent duplicate fetches for the same league
+    if (fetchingLeague === leagueId) {
+      return;
+    }
+    
+    setFetchingLeague(leagueId);
+    // Only show loading spinner on initial load
+    if (isInitialLoad) {
+      setIsLoadingPlayers(true);
+    }
+    
     try {
       const cacheKey = `top-players-${leagueId}`;
       
@@ -970,12 +998,22 @@ export default function DashboardPage() {
         false // Don't use stale-while-revalidate - only fetch when cache expires
       );
       
-      setTopPlayers(data.slice(0, 10));
+      const slicedData = data.slice(0, 10);
+      setTopPlayers(slicedData);
+      
+      // Store in cache for instant retrieval
+      setTopPlayersCache(prev => ({
+        ...prev,
+        [leagueId]: slicedData
+      }));
     } catch (error) {
       console.error("Failed to fetch top players:", error);
       setTopPlayers([]); // Set empty array on error instead of leaving stale data
     } finally {
-      setIsLoadingPlayers(false);
+      if (isInitialLoad) {
+        setIsLoadingPlayers(false);
+      }
+      setFetchingLeague(null);
     }
   };
 
@@ -1231,7 +1269,7 @@ export default function DashboardPage() {
                     {topLeagues.map((_, index) => (
                       <div
                         key={index}
-                        className={`w-2 h-2 rounded-full transition-all ${
+                        className={`w-2 h-2 rounded-full transition-all duration-300 ${
                           index === currentLeagueIndex ? 'bg-primary w-4' : 'bg-muted-foreground/30'
                         }`}
                       />
@@ -1240,15 +1278,20 @@ export default function DashboardPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <AnimatePresence mode="wait">
-                  <motion.div
-                    key={currentLeagueIndex}
-                    initial={{ opacity: 0, x: 20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    exit={{ opacity: 0, x: -20 }}
-                    transition={{ duration: 0.3 }}
-                    className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4"
-                  >
+                {isLoadingPlayers && topPlayers.length === 0 ? (
+                  <div className="flex items-center justify-center py-12">
+                    <Loader2 className="h-8 w-8 animate-spin" />
+                  </div>
+                ) : (
+                  <AnimatePresence mode="wait">
+                    <motion.div
+                      key={currentLeagueIndex}
+                      initial={{ opacity: 0, x: 20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      exit={{ opacity: 0, x: -20 }}
+                      transition={{ duration: 0.4, ease: "easeInOut" }}
+                      className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4"
+                    >
                     {topPlayers.map((playerData, index) => (
                       <motion.div
                         key={playerData.player.id}
@@ -1292,6 +1335,7 @@ export default function DashboardPage() {
                     ))}
                   </motion.div>
                 </AnimatePresence>
+                )}
               </CardContent>
             </Card>
           </motion.div>

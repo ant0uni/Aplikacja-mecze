@@ -69,6 +69,78 @@ export const SHOP_ITEMS: ShopItem[] = [
     category: "background",
     icon: "🌃",
   },
+  {
+    id: "bg_champions_gold",
+    name: "Champions Gold",
+    namePolish: "Złoto Mistrzów",
+    description: "Luxurious golden background for champions",
+    price: 12000,
+    category: "background",
+    icon: "🏆",
+  },
+  {
+    id: "bg_ocean_blue",
+    name: "Ocean Blue",
+    namePolish: "Błękit Oceanu",
+    description: "Calm and serene ocean gradient",
+    price: 5000,
+    category: "background",
+    icon: "🌊",
+  },
+  {
+    id: "bg_sunset_glory",
+    name: "Sunset Glory",
+    namePolish: "Zachód Chwały",
+    description: "Warm sunset colors for your profile",
+    price: 6000,
+    category: "background",
+    icon: "🌅",
+  },
+  {
+    id: "bg_forest_green",
+    name: "Forest Green",
+    namePolish: "Zieleń Lasu",
+    description: "Fresh green pitch-inspired background",
+    price: 5500,
+    category: "background",
+    icon: "🌲",
+  },
+  {
+    id: "bg_midnight_purple",
+    name: "Midnight Purple",
+    namePolish: "Purpura Północy",
+    description: "Mysterious and elegant purple tones",
+    price: 7000,
+    category: "background",
+    icon: "🌌",
+  },
+  {
+    id: "bg_fire_red",
+    name: "Fire Red",
+    namePolish: "Ognista Czerwień",
+    description: "Passionate red gradient for true fans",
+    price: 6500,
+    category: "background",
+    icon: "🔥",
+  },
+  {
+    id: "bg_ice_crystal",
+    name: "Ice Crystal",
+    namePolish: "Lodowy Kryształ",
+    description: "Cool and sophisticated icy background",
+    price: 7500,
+    category: "background",
+    icon: "❄️",
+  },
+  {
+    id: "bg_rainbow_pride",
+    name: "Rainbow Pride",
+    namePolish: "Tęczowa Duma",
+    description: "Colorful rainbow gradient showing your pride",
+    price: 9000,
+    category: "background",
+    icon: "🌈",
+  },
 
   // Avatar Frames
   {
@@ -112,6 +184,71 @@ export const SHOP_ITEMS: ShopItem[] = [
     price: 5000,
     category: "badge",
     icon: "💯",
+  },
+  {
+    id: "badge_big_winner",
+    name: "Big Winner",
+    namePolish: "Wielki Wygraniec",
+    description: "Won over 10,000 coins from predictions",
+    price: 8000,
+    category: "badge",
+    icon: "💰",
+  },
+  {
+    id: "badge_prediction_streak",
+    name: "Prediction Streak",
+    namePolish: "Seria Trafionych",
+    description: "5 correct predictions in a row",
+    price: 4000,
+    category: "badge",
+    icon: "🔥",
+  },
+  {
+    id: "badge_early_adopter",
+    name: "Early Adopter",
+    namePolish: "Pierwszy Użytkownik",
+    description: "One of the first users on the platform",
+    price: 15000,
+    category: "badge",
+    icon: "⭐",
+    limited: true,
+  },
+  {
+    id: "badge_football_expert",
+    name: "Football Expert",
+    namePolish: "Ekspert Piłkarski",
+    description: "Made 100+ predictions",
+    price: 6000,
+    category: "badge",
+    icon: "🎓",
+  },
+  {
+    id: "badge_lucky_charm",
+    name: "Lucky Charm",
+    namePolish: "Szczęśliwy Talizman",
+    description: "Won 3 high-stakes predictions",
+    price: 5500,
+    category: "badge",
+    icon: "🍀",
+  },
+  {
+    id: "badge_vip_member",
+    name: "VIP Member",
+    namePolish: "Członek VIP",
+    description: "Exclusive VIP status badge",
+    price: 20000,
+    category: "badge",
+    icon: "👑",
+    limited: true,
+  },
+  {
+    id: "badge_top_10",
+    name: "Top 10 Ranker",
+    namePolish: "Top 10 w Rankingu",
+    description: "Reached top 10 in global rankings",
+    price: 12000,
+    category: "badge",
+    icon: "🏅",
   },
 ];
 
@@ -162,6 +299,30 @@ export const BACKGROUNDS: Record<string, { gradient: string; pattern?: string }>
     gradient: "from-indigo-900 via-purple-900 to-black",
     pattern: "stadium",
   },
+  bg_champions_gold: {
+    gradient: "from-yellow-300 via-yellow-500 to-orange-600",
+  },
+  bg_ocean_blue: {
+    gradient: "from-blue-400 via-cyan-500 to-teal-600",
+  },
+  bg_sunset_glory: {
+    gradient: "from-orange-400 via-pink-500 to-purple-600",
+  },
+  bg_forest_green: {
+    gradient: "from-green-400 via-emerald-500 to-green-700",
+  },
+  bg_midnight_purple: {
+    gradient: "from-purple-900 via-violet-800 to-indigo-900",
+  },
+  bg_fire_red: {
+    gradient: "from-red-500 via-rose-600 to-red-700",
+  },
+  bg_ice_crystal: {
+    gradient: "from-cyan-300 via-blue-400 to-indigo-500",
+  },
+  bg_rainbow_pride: {
+    gradient: "from-red-500 via-yellow-500 via-green-500 via-blue-500 to-purple-500",
+  },
 };
 
 // Frame definitions
@@ -173,5 +334,17 @@ export const FRAMES: Record<string, { border: string; shadow: string }> = {
   frame_golden_laurel: {
     border: "border-4 border-yellow-400",
     shadow: "shadow-lg shadow-yellow-400/50",
+  },
+};
+
+// Victory effect definitions (used for special animations or visual enhancements)
+export const VICTORY_EFFECTS: Record<string, { animation: string; glow: string }> = {
+  none: {
+    animation: "",
+    glow: "",
+  },
+  effect_golden_celebration: {
+    animation: "animate-pulse",
+    glow: "shadow-lg shadow-yellow-400/30",
   },
 };

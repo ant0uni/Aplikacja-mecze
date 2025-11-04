@@ -19,7 +19,11 @@ export async function GET() {
 
     // Get user's owned items
     const [user] = await db
-      .select({ ownedItems: users.ownedItems, coins: users.coins })
+      .select({ 
+        ownedItems: users.ownedItems, 
+        badges: users.badges,
+        coins: users.coins 
+      })
       .from(users)
       .where(eq(users.id, currentUser.userId))
       .limit(1);
@@ -28,6 +32,7 @@ export async function GET() {
       {
         items: SHOP_ITEMS,
         ownedItems: user?.ownedItems || [],
+        badges: user?.badges || [],
         coins: user?.coins || 0,
       },
       { status: 200 }
@@ -87,11 +92,22 @@ export async function POST(request: NextRequest) {
     }
 
     // Check if user already owns the item
-    if (user.ownedItems.includes(itemId)) {
-      return NextResponse.json(
-        { error: "You already own this item" },
-        { status: 400 }
-      );
+    if (item.category === 'badge') {
+      // For badges, check the badges array
+      if (user.badges.includes(itemId)) {
+        return NextResponse.json(
+          { error: "You already own this badge" },
+          { status: 400 }
+        );
+      }
+    } else {
+      // For other items, check ownedItems
+      if (user.ownedItems.includes(itemId)) {
+        return NextResponse.json(
+          { error: "You already own this item" },
+          { status: 400 }
+        );
+      }
     }
 
     // Check if user has enough coins
@@ -103,14 +119,28 @@ export async function POST(request: NextRequest) {
     }
 
     // Purchase item
-    await db
-      .update(users)
-      .set({
-        coins: sql`${users.coins} - ${item.price}`,
-        ownedItems: sql`array_append(${users.ownedItems}, ${itemId})`,
-        updatedAt: new Date(),
-      })
-      .where(eq(users.id, currentUser.userId));
+    if (item.category === 'badge') {
+      // Add badge to badges array
+      await db
+        .update(users)
+        .set({
+          coins: sql`${users.coins} - ${item.price}`,
+          badges: sql`array_append(${users.badges}, ${itemId})`,
+          ownedItems: sql`array_append(${users.ownedItems}, ${itemId})`, // Also add to ownedItems for inventory tracking
+          updatedAt: new Date(),
+        })
+        .where(eq(users.id, currentUser.userId));
+    } else {
+      // Add item to ownedItems
+      await db
+        .update(users)
+        .set({
+          coins: sql`${users.coins} - ${item.price}`,
+          ownedItems: sql`array_append(${users.ownedItems}, ${itemId})`,
+          updatedAt: new Date(),
+        })
+        .where(eq(users.id, currentUser.userId));
+    }
 
     // Auto-equip if it's the first item of this category
     let updateFields: any = {};

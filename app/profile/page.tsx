@@ -13,7 +13,7 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { BADGE_DEFINITIONS } from "@/lib/badges";
-import { AVATARS, BACKGROUNDS, FRAMES } from "@/lib/shop-items";
+import { AVATARS, BACKGROUNDS, FRAMES, VICTORY_EFFECTS } from "@/lib/shop-items";
 import { SHOP_ITEMS } from "@/lib/shop-items";
 import Image from "next/image";
 
@@ -244,6 +244,7 @@ export default function ProfilePage() {
   const avatarStyle = AVATARS[user?.avatar || 'default'] || AVATARS.default;
   const backgroundStyle = BACKGROUNDS[user?.profileBackground || 'default'] || BACKGROUNDS.default;
   const frameStyle = FRAMES[user?.avatarFrame || 'none'] || FRAMES.none;
+  const victoryEffectStyle = VICTORY_EFFECTS[user?.victoryEffect || 'none'] || VICTORY_EFFECTS.none;
   const profileTitleData = user?.profileTitle 
     ? SHOP_ITEMS.find(item => item.id === user.profileTitle) 
     : null;
@@ -276,6 +277,9 @@ export default function ProfilePage() {
             </div>
           </div>
           <div className="flex items-center gap-2">
+            <Button variant="outline" onClick={() => router.push('/ranking')}>
+              🏆 Ranking
+            </Button>
             <Button variant="outline" onClick={() => router.push('/auth/shop')}>
               🛒 Shop
             </Button>
@@ -292,7 +296,7 @@ export default function ProfilePage() {
             <div className="flex items-center gap-6">
               {/* Avatar */}
               <div className="flex-shrink-0">
-                <div className={`w-24 h-24 rounded-full bg-gradient-to-br ${avatarStyle.gradient} backdrop-blur-sm ${frameStyle.border} ${frameStyle.shadow} flex items-center justify-center text-4xl font-bold`}>
+                <div className={`w-24 h-24 rounded-full bg-gradient-to-br ${avatarStyle.gradient} backdrop-blur-sm ${frameStyle.border} ${frameStyle.shadow} ${victoryEffectStyle.animation} ${victoryEffectStyle.glow} flex items-center justify-center text-4xl font-bold`}>
                   {avatarStyle.icon || (user?.nickname ? user.nickname.substring(0, 2).toUpperCase() : "??")}
                 </div>
               </div>
@@ -379,6 +383,9 @@ export default function ProfilePage() {
                 {user.ownedItems.map((itemId) => {
                   const item = SHOP_ITEMS.find((i) => i.id === itemId);
                   if (!item) return null;
+                  
+                  // Skip badges - they're shown in the badges section
+                  if (item.category === 'badge') return null;
 
                   const isEquipped = 
                     (item.category === 'avatar' && user.avatar === itemId) ||
@@ -460,6 +467,16 @@ export default function ProfilePage() {
                       disabled={isEquipping}
                     >
                       Remove Title
+                    </Button>
+                  )}
+                  {user.victoryEffect && user.victoryEffect !== 'none' && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => handleEquipItem('none', 'effect')}
+                      disabled={isEquipping}
+                    >
+                      Remove Effect
                     </Button>
                   )}
                 </div>
