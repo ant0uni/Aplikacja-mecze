@@ -34,10 +34,19 @@ interface User {
 
 interface Prediction {
   id: number;
-  fixtureId: number;
-  fixtureApiId: number;
-  predictedHomeScore: number;
-  predictedAwayScore: number;
+  predictionType: string;
+  // Match prediction fields
+  fixtureId?: number;
+  fixtureApiId?: number;
+  predictedHomeScore?: number;
+  predictedAwayScore?: number;
+  // League prediction fields
+  leagueId?: number;
+  leagueName?: string;
+  predictedWinnerId?: number;
+  predictedWinnerName?: string;
+  predictedWinnerLogo?: string;
+  // Common fields
   coinsWagered: number;
   coinsWon: number;
   verdict: string;
@@ -643,123 +652,187 @@ export default function ProfilePage() {
               </p>
             ) : (
               <div className="space-y-3">
-                {predictions.slice(0, 10).map((prediction) => (
-                  <motion.div
-                    key={prediction.id}
-                    className="border rounded-lg p-4 space-y-3 cursor-pointer hover:shadow-lg hover:border-primary/50 transition-all"
-                    onClick={() => router.push(`/match/${prediction.fixtureApiId}`)}
-                    whileHover={{ scale: 1.01 }}
-                  >
-                    {/* Match Header with Teams */}
-                    <div className="flex items-center justify-between gap-4">
-                      <div className="flex-1 flex items-center gap-3">
-                        {/* Home Team */}
-                        <div className="flex items-center gap-2 flex-1">
-                          {prediction.fixture?.homeTeamLogo ? (
-                            <Image 
-                              src={prediction.fixture.homeTeamLogo} 
-                              alt={prediction.fixture.homeTeamName || 'Home'}
-                              width={32}
-                              height={32}
-                              className="rounded-full object-cover"
-                              onError={(e) => {
-                                // Hide image on error and show fallback
-                                e.currentTarget.style.display = 'none';
-                              }}
-                            />
-                          ) : (
-                            <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center text-xs font-bold">
-                              H
+                {predictions.slice(0, 10).map((prediction) => {
+                  // League prediction display
+                  if (prediction.predictionType === "league") {
+                    return (
+                      <motion.div
+                        key={prediction.id}
+                        className="border rounded-lg p-4 space-y-3 hover:shadow-lg hover:border-primary/50 transition-all"
+                        whileHover={{ scale: 1.01 }}
+                      >
+                        {/* League Header */}
+                        <div className="flex items-center justify-between gap-4">
+                          <div className="flex items-center gap-3 flex-1">
+                            <div className="text-2xl">🏆</div>
+                            <div>
+                              <div className="font-semibold">{prediction.leagueName || "League"} Winner</div>
+                              <div className="text-sm text-muted-foreground">League Prediction</div>
                             </div>
-                          )}
-                          <span className="font-semibold text-sm">
-                            {prediction.fixture?.homeTeamName || 'Home Team'}
-                          </span>
-                        </div>
-                        
-                        {/* Score Display */}
-                        <div className="flex flex-col items-center px-4 py-2 bg-muted rounded-lg min-w-[120px]">
-                          <div className="text-xs text-muted-foreground mb-1">Your Prediction</div>
-                          <div className="text-2xl font-bold">
-                            {prediction.predictedHomeScore} - {prediction.predictedAwayScore}
                           </div>
                         </div>
                         
-                        {/* Away Team */}
-                        <div className="flex items-center gap-2 flex-1 justify-end">
-                          <span className="font-semibold text-sm">
-                            {prediction.fixture?.awayTeamName || 'Away Team'}
-                          </span>
-                          {prediction.fixture?.awayTeamLogo ? (
+                        {/* Predicted Winner */}
+                        <div className="flex items-center gap-3 p-3 bg-muted rounded-lg">
+                          {prediction.predictedWinnerLogo ? (
                             <Image 
-                              src={prediction.fixture.awayTeamLogo} 
-                              alt={prediction.fixture.awayTeamName || 'Away'}
-                              width={32}
-                              height={32}
+                              src={prediction.predictedWinnerLogo} 
+                              alt={prediction.predictedWinnerName || 'Team'}
+                              width={40}
+                              height={40}
                               className="rounded-full object-cover"
                               onError={(e) => {
-                                // Hide image on error and show fallback
                                 e.currentTarget.style.display = 'none';
                               }}
                             />
                           ) : (
-                            <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center text-xs font-bold">
-                              A
+                            <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center text-xs font-bold">
+                              {prediction.predictedWinnerName?.substring(0, 2) || 'T'}
                             </div>
                           )}
+                          <div>
+                            <div className="text-xs text-muted-foreground">Your Prediction</div>
+                            <div className="font-bold">{prediction.predictedWinnerName || 'Team'}</div>
+                          </div>
                         </div>
-                      </div>
-                    </div>
 
-                    {/* Match Info Row */}
-                    <div className="flex items-center justify-between text-sm text-muted-foreground border-t pt-2">
-                      <div className="flex items-center gap-4">
-                        <span>
-                          📅 {prediction.fixture?.startingAt 
-                            ? new Date(prediction.fixture.startingAt).toLocaleDateString('en-US', { 
-                                month: 'short', 
-                                day: 'numeric',
-                                hour: '2-digit',
-                                minute: '2-digit'
-                              })
-                            : new Date(prediction.createdAt).toLocaleDateString()}
-                        </span>
-                        <span>💰 Wagered: {prediction.coinsWagered} coins</span>
-                      </div>
-                      <div>
-                        {prediction.isSettled ? (
-                          <Badge variant={prediction.coinsWon > 0 ? "default" : "destructive"}>
-                            {prediction.coinsWon > 0 ? `Won ${prediction.coinsWon} coins` : 'Lost'}
-                          </Badge>
-                        ) : (
-                          <Badge variant="secondary">⏳ Pending</Badge>
-                        )}
-                      </div>
-                    </div>
-                    
-                    {/* Match Result Display */}
-                    {prediction.fixture && prediction.fixture.homeScore !== null && prediction.fixture.awayScore !== null && (
-                      <div className="pt-2 border-t">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2">
-                            <span className="text-sm text-muted-foreground">Actual Result:</span>
-                            <span className="font-bold text-lg">
-                              {prediction.fixture.homeScore} - {prediction.fixture.awayScore}
-                            </span>
+                        {/* Info Row */}
+                        <div className="flex items-center justify-between text-sm text-muted-foreground border-t pt-2">
+                          <div className="flex items-center gap-4">
+                            <span>📅 {new Date(prediction.createdAt).toLocaleDateString()}</span>
+                            <span>💰 Wagered: {prediction.coinsWagered} coins</span>
                           </div>
                           <div>
-                            {prediction.predictedHomeScore === prediction.fixture.homeScore && 
-                             prediction.predictedAwayScore === prediction.fixture.awayScore ? (
-                              <Badge variant="default" className="text-xs">✓ Perfect Prediction!</Badge>
+                            {prediction.isSettled ? (
+                              <Badge variant={prediction.coinsWon > 0 ? "default" : "destructive"}>
+                                {prediction.coinsWon > 0 ? `Won ${prediction.coinsWon} coins` : 'Lost'}
+                              </Badge>
                             ) : (
-                              <Badge variant="destructive" className="text-xs">✗ Incorrect</Badge>
+                              <Badge variant="secondary">⏳ Pending</Badge>
+                            )}
+                          </div>
+                        </div>
+                      </motion.div>
+                    );
+                  }
+
+                  // Match prediction display
+                  return (
+                    <motion.div
+                      key={prediction.id}
+                      className="border rounded-lg p-4 space-y-3 cursor-pointer hover:shadow-lg hover:border-primary/50 transition-all"
+                      onClick={() => prediction.fixtureApiId && router.push(`/match/${prediction.fixtureApiId}`)}
+                      whileHover={{ scale: 1.01 }}
+                    >
+                      {/* Match Header with Teams */}
+                      <div className="flex items-center justify-between gap-4">
+                        <div className="flex-1 flex items-center gap-3">
+                          {/* Home Team */}
+                          <div className="flex items-center gap-2 flex-1">
+                            {prediction.fixture?.homeTeamLogo ? (
+                              <Image 
+                                src={prediction.fixture.homeTeamLogo} 
+                                alt={prediction.fixture.homeTeamName || 'Home'}
+                                width={32}
+                                height={32}
+                                className="rounded-full object-cover"
+                                onError={(e) => {
+                                  e.currentTarget.style.display = 'none';
+                                }}
+                              />
+                            ) : (
+                              <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center text-xs font-bold">
+                                {prediction.fixture?.homeTeamName?.substring(0, 1) || 'H'}
+                              </div>
+                            )}
+                            <span className="font-semibold text-sm">
+                              {prediction.fixture?.homeTeamName || 'Home Team'}
+                            </span>
+                          </div>
+                          
+                          {/* Score Display */}
+                          <div className="flex flex-col items-center px-4 py-2 bg-muted rounded-lg min-w-[120px]">
+                            <div className="text-xs text-muted-foreground mb-1">Your Prediction</div>
+                            <div className="text-2xl font-bold">
+                              {prediction.predictedHomeScore ?? 0} - {prediction.predictedAwayScore ?? 0}
+                            </div>
+                          </div>
+                          
+                          {/* Away Team */}
+                          <div className="flex items-center gap-2 flex-1 justify-end">
+                            <span className="font-semibold text-sm">
+                              {prediction.fixture?.awayTeamName || 'Away Team'}
+                            </span>
+                            {prediction.fixture?.awayTeamLogo ? (
+                              <Image 
+                                src={prediction.fixture.awayTeamLogo} 
+                                alt={prediction.fixture.awayTeamName || 'Away'}
+                                width={32}
+                                height={32}
+                                className="rounded-full object-cover"
+                                onError={(e) => {
+                                  e.currentTarget.style.display = 'none';
+                                }}
+                              />
+                            ) : (
+                              <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center text-xs font-bold">
+                                {prediction.fixture?.awayTeamName?.substring(0, 1) || 'A'}
+                              </div>
                             )}
                           </div>
                         </div>
                       </div>
-                    )}
-                  </motion.div>
-                ))}
+
+                      {/* Match Info Row */}
+                      <div className="flex items-center justify-between text-sm text-muted-foreground border-t pt-2">
+                        <div className="flex items-center gap-4">
+                          <span>
+                            📅 {prediction.fixture?.startingAt 
+                              ? new Date(prediction.fixture.startingAt).toLocaleDateString('en-US', { 
+                                  month: 'short', 
+                                  day: 'numeric',
+                                  hour: '2-digit',
+                                  minute: '2-digit'
+                                })
+                              : new Date(prediction.createdAt).toLocaleDateString()}
+                          </span>
+                          <span>💰 Wagered: {prediction.coinsWagered} coins</span>
+                        </div>
+                        <div>
+                          {prediction.isSettled ? (
+                            <Badge variant={prediction.coinsWon > 0 ? "default" : "destructive"}>
+                              {prediction.coinsWon > 0 ? `Won ${prediction.coinsWon} coins` : 'Lost'}
+                            </Badge>
+                          ) : (
+                            <Badge variant="secondary">⏳ Pending</Badge>
+                          )}
+                        </div>
+                      </div>
+                      
+                      {/* Match Result Display */}
+                      {prediction.fixture && prediction.fixture.homeScore !== null && prediction.fixture.awayScore !== null && (
+                        <div className="pt-2 border-t">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm text-muted-foreground">Actual Result:</span>
+                              <span className="font-bold text-lg">
+                                {prediction.fixture.homeScore} - {prediction.fixture.awayScore}
+                              </span>
+                            </div>
+                            <div>
+                              {prediction.predictedHomeScore === prediction.fixture.homeScore && 
+                               prediction.predictedAwayScore === prediction.fixture.awayScore ? (
+                                <Badge variant="default" className="text-xs">✓ Perfect Prediction!</Badge>
+                              ) : (
+                                <Badge variant="destructive" className="text-xs">✗ Incorrect</Badge>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </motion.div>
+                  );
+                })}
               </div>
             )}
           </CardContent>

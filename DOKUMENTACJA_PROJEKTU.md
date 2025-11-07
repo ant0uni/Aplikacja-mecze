@@ -1,8 +1,8 @@
-# Projekt Technologii Sieciowych – „CoinBet"
+# Projekt Technologii Sieciowych – „CoinKick"
 
 ## 1. Wstęp
 
-„CoinBet" to nowoczesna aplikacja webowa symulująca system zakładów sportowych, w której użytkownicy obstawiają wyniki meczów piłkarskich przy użyciu wirtualnych monet (coinów). Celem projektu jest stworzenie środowiska przypominającego rzeczywiste platformy bukmacherskie, ale całkowicie pozbawionego ryzyka finansowego i transakcji pieniężnych.
+„CoinKick" to nowoczesna aplikacja webowa symulująca system zakładów sportowych, w której użytkownicy obstawiają wyniki meczów piłkarskich oraz przewidują zwycięzców lig przy użyciu wirtualnych monet (coinów). Celem projektu jest stworzenie środowiska przypominającego rzeczywiste platformy bukmacherskie, ale całkowicie pozbawionego ryzyka finansowego i transakcji pieniężnych.
 
 Projekt koncentruje się na wykorzystaniu zaawansowanych technologii sieciowych, bezpiecznej integracji z bazą danych PostgreSQL oraz obsłudze aktualizacji danych w czasie rzeczywistym z wykorzystaniem zewnętrznych API sportowych.
 
@@ -16,7 +16,8 @@ Aplikacja umożliwia użytkownikowi:
 
 - **Rejestrację i logowanie** – bezpieczny system autoryzacji z wykorzystaniem JWT oraz szyfrowanych haseł
 - **Przeglądanie wydarzeń sportowych** – dostęp do rozgrywek z top 5 europejskich lig piłkarskich (Premier League, La Liga, Bundesliga, Serie A, Ligue 1)
-- **Obstawianie wyników** – przewidywanie wyniku meczu (zwycięzca, remis) z określoną liczbą coinów
+- **Obstawianie wyników meczów** – przewidywanie dokładnego wyniku meczu z określoną liczbą coinów
+- **Obstawianie zwycięzców lig** – długoterminowe zakłady na zespół, który wygra całą ligę
 - **Śledzenie meczów na żywo** – karuzela na żywo z bieżącymi spotkaniami
 - **System nagród i odznak** – zdobywanie osiągnięć za poprawne typy i aktywność
 - **Sklep z personalizacją** – możliwość zakupu awatarów, ramek, efektów wizualnych, tytułów i odznak
@@ -26,14 +27,64 @@ Aplikacja umożliwia użytkownikowi:
 
 ### 2.2 System Coinów Startowych
 
-Każdy nowo zarejestrowany użytkownik otrzymuje **1000 coinów startowych**, które stanowią wirtualną walutę do obstawiania meczów. Coiny można zdobywać poprzez:
+Każdy nowo zarejestrowany użytkownik otrzymuje **100 coinów startowych**, które stanowią wirtualną walutę do obstawiania meczów i lig.
 
-- Wygrane zakłady (mnożnik: 1.5x–2.5x w zależności od rodzaju zakładu)
-- Codzienne logowanie (bonus aktywności)
-- Zdobywanie osiągnięć i odznak
-- Uczestnictwo w turniejach tygodniowych
+### 2.3 Algorytm Zdobywania i Tracenia Coinów
 
-System został zaprojektowany tak, aby użytkownik mógł przez dłuższy czas korzystać z aplikacji bez "bankructwa", a jednocześnie odczuwał wartość podejmowanych decyzji.
+#### Zdobywanie Coinów
+
+**1. Typowanie Meczów (Predictions)**
+- Użytkownik stawia określoną liczbę coinów na przewidywany wynik meczu (np. 3:1)
+- Po zakończeniu meczu następuje automatyczne rozliczenie:
+  - **Dokładne trafienie wyniku** (np. przewidział 3:1, wynik 3:1): 
+    - Zwrot stawki + wygrana = `postawione coiny × 2.0`
+    - Przykład: 50 coinów × 2.0 = **100 coinów wygranej**
+  - **Błędne trafienie**: 
+    - Utrata postawionych coinów
+    - Przykład: postawiono 50 coinów → **-50 coinów**
+
+**2. Typowanie Zwycięzcy Ligi**
+- Użytkownik przewiduje, która drużyna wygra całą ligę (np. Premier League)
+- Można postawić tylko raz na daną ligę
+- Rozliczenie następuje na koniec sezonu:
+  - **Poprawne wytypowanie zwycięzcy ligi**: 
+    - Zwrot stawki + wygrana = `postawione coiny × 5.0`
+    - Przykład: 100 coinów × 5.0 = **500 coinów wygranej**
+  - **Błędne wytypowanie**: 
+    - Utrata postawionych coinów
+    - Przykład: postawiono 100 coinów → **-100 coinów**
+
+**3. Osiągnięcia i Odznaki**
+- Zdobycie odznaki: **+50 coinów**
+- Seria 5 poprawnych typów: **+100 coinów (odznaka "Szczęśliwy Typer")**
+- Seria 10 poprawnych typów: **+250 coinów (odznaka "Prediction Streak")**
+- 100 poprawnych typów w historii: **+500 coinów (odznaka "Football Expert")**
+
+#### Tracenie Coinów
+
+**1. Wydatki w Sklepie**
+- Zakup awatarów: **-50 do -200 coinów**
+- Zakup teł profilu: **-100 do -500 coinów**
+- Zakup ramek: **-150 do -300 coinów**
+- Zakup efektów zwycięstwa: **-200 do -400 coinów**
+- Zakup tytułów: **-300 do -1000 coinów**
+- Zakup odznak: **-500 do -2000 coinów**
+
+**2. Przegrane Zakłady**
+- Każdy błędny typ meczu skutkuje utratą postawionych coinów
+- Każdy błędny typ zwycięzcy ligi skutkuje utratą postawionych coinów
+
+#### Przykładowy Scenariusz
+
+Użytkownik startuje z **100 coinami**:
+1. Stawia 30 coinów na mecz Arsenal vs Chelsea (typ 2:1) → mecz kończy się 2:1 → **+60 coinów** (razem: 130)
+2. Stawia 20 coinów na mecz Barcelona vs Real (typ 3:0) → mecz kończy się 2:1 → **-20 coinów** (razem: 110)
+3. Zdobywa odznakę "Pierwszy Typ" → **+50 coinów** (razem: 160)
+4. Kupuje nowy awatar za 80 coinów → **-80 coinów** (razem: 80)
+5. Stawia 50 coinów na zwycięzcę Premier League (Man City) → czeka na koniec sezonu
+6. Na koniec sezonu Man City wygrywa → **+250 coinów** (50 × 5.0) (razem: 330)
+
+System został zaprojektowany tak, aby użytkownik mógł przez dłuższy czas korzystać z aplikacji, a jednocześnie odczuwał wartość podejmowanych decyzji.
 
 ## 3. Technologie Sieciowe i Architektura
 
@@ -115,76 +166,128 @@ System wykorzystuje następujące endpointy SofaScore:
 
 ### 4.1 Rodzaje Zakładów
 
-Użytkownik może obstawiać wyniki meczów w trzech podstawowych kategoriach:
+#### Zakłady na Mecze
+Użytkownik może typować dokładny wynik meczu (np. 2:1, 3:0, 1:1):
+- Postawienie coinów na przewidywany dokładny wynik
+- Minimalna stawka: **10 coinów**
+- Maksymalna stawka: **500 coinów**
+- Współczynnik wygranej: **2.0x** (dokładne trafienie)
 
-1. **Zwycięstwo gospodarzy** – stawka x2.2
-2. **Remis** – stawka x3.0 (wyższy współczynnik ze względu na niższą częstotliwość)
-3. **Zwycięstwo gości** – stawka x2.2
+#### Zakłady na Zwycięzców Lig
+Użytkownik może typować, która drużyna wygra całą ligę:
+- Dostępne dla wszystkich głównych lig (Premier League, La Liga, Bundesliga, etc.)
+- Można postawić tylko **raz na daną ligę**
+- Minimalna stawka: **50 coinów**
+- Maksymalna stawka: **1000 coinów**
+- Współczynnik wygranej: **5.0x** (poprawne wytypowanie)
+- Rozliczenie następuje automatycznie po zakończeniu sezonu
 
-Każdy zakład wymaga postawienia określonej liczby coinów (minimalnie 10, maksymalnie 500).
-
-### 4.2 Proces Obstawiania
+### 4.2 Proces Obstawiania Meczów
 
 1. Użytkownik przegląda dostępne mecze na dashboardzie
 2. Klika na mecz, aby zobaczyć szczegóły
-3. Wybiera przewidywany wynik (1, X, 2)
-4. Określa liczbę coinów do postawienia
-5. Zatwierdza zakład – coiny są natychmiast odejmowane z salda
-6. Po zakończeniu meczu system automatycznie rozlicza zakład
+3. Otwiera dialog przewidywania
+4. Wybiera przewidywany dokładny wynik (np. 2:1)
+5. Określa liczbę coinów do postawienia
+6. Zatwierdza zakład – coiny są natychmiast odejmowane z salda
+7. Po zakończeniu meczu system automatycznie rozlicza zakład
 
-### 4.3 Rozliczanie Zakładów
+### 4.3 Proces Obstawiania Zwycięzcy Ligi
 
-System przewiduje automatyczne rozliczanie zakładów:
+1. Użytkownik wchodzi na stronę ligi (np. Premier League)
+2. Przegląda tabelę i drużyny
+3. Klika przycisk "Predict Winner" (Przewiduj Zwycięzcę)
+4. Wybiera drużynę z listy (z funkcją wyszukiwania)
+5. Określa liczbę coinów do postawienia
+6. Zatwierdza zakład – coiny są natychmiast odejmowane z salda
+7. Zakład jest widoczny w profilu jako "Pending" do końca sezonu
 
+### 4.4 Rozliczanie Zakładów
+
+System automatycznie rozlicza zakłady zgodnie z następującą logiką:
+
+**Rozliczanie Zakładów Meczowych:**
 ```typescript
-// Pseudokod logiki rozliczania
-if (prediction.outcome === match.finalResult) {
-  // Poprawny typ
-  userCoins += prediction.amount * multiplier;
-  updateUserStatistics(userId, 'win');
-  checkForBadges(userId);
+// Automatyczne rozliczanie po zakończeniu meczu
+if (prediction.predictedHomeScore === match.homeScore && 
+    prediction.predictedAwayScore === match.awayScore) {
+  // Dokładne trafienie wyniku
+  const winAmount = prediction.coinsWagered * 2.0;
+  userCoins += winAmount;
+  prediction.status = 'won';
+  prediction.coinsWon = winAmount;
 } else {
   // Błędny typ
-  updateUserStatistics(userId, 'loss');
+  prediction.status = 'lost';
+  prediction.coinsWon = 0;
+}
+```
+
+**Rozliczanie Zakładów Ligowych:**
+```typescript
+// Automatyczne rozliczanie po zakończeniu sezonu
+if (prediction.predictedWinnerId === league.championTeamId) {
+  // Poprawne wytypowanie zwycięzcy
+  const winAmount = prediction.coinsWagered * 5.0;
+  userCoins += winAmount;
+  prediction.status = 'won';
+  prediction.coinsWon = winAmount;
+} else {
+  // Błędne wytypowanie
+  prediction.status = 'lost';
+  prediction.coinsWon = 0;
 }
 ```
 
 W przypadku:
-- **Wygranej** – użytkownik otrzymuje zwrot stawki + wygraną (np. 100 coinów × 2.2 = 220 coinów)
-- **Przegranej** – użytkownik traci postawione coiny
+- **Wygranej zakładu meczowego** – zwrot stawki + wygrana (2.0x stawki)
+- **Wygranej zakładu ligowego** – zwrot stawki + wygrana (5.0x stawki)
+- **Przegranej** – utrata postawionych coinów
 - **Meczu anulowanego** – stawka jest zwracana w całości
 
-### 4.4 System Sklepu i Personalizacji
+### 4.5 System Sklepu i Personalizacji
 
 Aplikacja oferuje rozbudowany sklep z elementami personalizacji:
 
-#### Kategorie Produktów
+#### Kategorie Produktów i Ceny
 
 1. **Awatary** (50–200 coinów)
-   - Graficzne reprezentacje użytkownika
-   - Różne style i motywy piłkarskie
+   - `default` – Domyślny (darmowy)
+   - `golden-ball` – Złota Piłka (100 coinów)
+   - `champion` – Mistrz (150 coinów)
+   - `legend` – Legenda (200 coinów)
 
 2. **Tła profilu** (100–500 coinów)
-   - Gradienty inspirowane klubami
-   - Tematyczne tła (Champions Gold, Ocean Blue, Fire Red, etc.)
+   - `default` – Domyślne (darmowe)
+   - `champions-gold` – Champions Gold (200 coinów)
+   - `ocean-blue` – Ocean Blue (150 coinów)
+   - `fire-red` – Fire Red (250 coinów)
+   - `emerald-green` – Emerald Green (200 coinów)
+   - `royal-purple` – Royal Purple (300 coinów)
 
 3. **Ramki awatarów** (150–300 coinów)
-   - Dekoracyjne obramowania
-   - Efekty premium dla aktywnych graczy
+   - `none` – Brak (darmowa)
+   - `gold-frame` – Złota Ramka (200 coinów)
+   - `diamond-frame` – Diamentowa Ramka (300 coinów)
+   - `fire-frame` – Ognista Ramka (250 coinów)
 
 4. **Efekty zwycięstwa** (200–400 coinów)
-   - Animacje wyświetlane po wygranych zakładach
-   - Particle effects, glow, shimmer
+   - `none` – Brak (darmowy)
+   - `sparkle` – Iskry (250 coinów)
+   - `confetti` – Konfetti (300 coinów)
+   - `fireworks` – Fajerwerki (400 coinów)
 
 5. **Tytuły** (300–1000 coinów)
-   - Unikalne miana wyświetlane pod nazwą użytkownika
-   - "Mistrz Typowania", "Król Zakładów", etc.
+   - `prediction-master` – Mistrz Typowania (500 coinów)
+   - `bet-king` – Król Zakładów (800 coinów)
+   - `legend-status` – Status Legendy (1000 coinów)
 
 6. **Odznaki** (500–2000 coinów)
-   - Osiągnięcia i wyróżnienia
-   - "Big Winner", "Prediction Streak", "VIP Member"
+   - `big-winner` – Wielki Zwycięzca (1000 coinów)
+   - `streak-master` – Mistrz Serii (1500 coinów)
+   - `vip-member` – Członek VIP (2000 coinów)
 
-Wszystkie zakupione elementy trafiają do inwentarza użytkownika i mogą być dowolnie wyposażane lub zdejmowane z profilu.
+Wszystkie zakupione elementy trafiają do inwentarza użytkownika (`ownedItems`) i mogą być dowolnie wyposażane lub zdejmowane z profilu.
 
 ## 5. Nagrody i System Osiągnięć
 
@@ -266,25 +369,46 @@ Profil można przeglądać bez logowania, co sprzyja rywalizacji społecznościo
 ```sql
 - id (SERIAL PRIMARY KEY)
 - userId (INTEGER, FOREIGN KEY)
-- fixtureId (INTEGER, FOREIGN KEY)
-- predictedOutcome (VARCHAR) -- '1', 'X', '2'
-- amount (INTEGER) -- liczba postawionych coinów
-- odds (DECIMAL) -- współczynnik
-- status (VARCHAR) -- 'pending', 'won', 'lost'
+- predictionType (VARCHAR) -- 'match' lub 'league'
+-- Dla zakładów meczowych:
+- fixtureId (INTEGER, FOREIGN KEY, nullable)
+- fixtureApiId (INTEGER, nullable)
+- predictedHomeScore (INTEGER, nullable)
+- predictedAwayScore (INTEGER, nullable)
+-- Dla zakładów ligowych:
+- leagueId (INTEGER, nullable)
+- leagueName (TEXT, nullable)
+- predictedWinnerId (INTEGER, nullable)
+- predictedWinnerName (TEXT, nullable)
+- predictedWinnerLogo (TEXT, nullable)
+-- Wspólne pola:
+- coinsWagered (INTEGER) -- liczba postawionych coinów
+- coinsWon (INTEGER, DEFAULT 0) -- wygrana
+- verdict (VARCHAR) -- 'pending', 'win', 'lose'
+- isSettled (BOOLEAN) -- czy rozliczony
 - createdAt (TIMESTAMP)
+- updatedAt (TIMESTAMP)
 ```
 
 #### Tabela `fixtures`
 ```sql
 - id (SERIAL PRIMARY KEY)
-- homeTeam (VARCHAR)
-- awayTeam (VARCHAR)
+- apiId (INTEGER, UNIQUE) -- SofaScore ID
+- homeTeamId (INTEGER)
+- homeTeamName (TEXT)
+- homeTeamLogo (TEXT)
+- awayTeamId (INTEGER)
+- awayTeamName (TEXT)
+- awayTeamLogo (TEXT)
 - startingAt (TIMESTAMP)
-- league (VARCHAR)
-- status (VARCHAR) -- 'scheduled', 'live', 'finished'
-- homeScore (INTEGER)
-- awayScore (INTEGER)
-- sofascoreId (INTEGER, UNIQUE) -- ID z API SofaScore
+- leagueId (INTEGER)
+- leagueName (TEXT)
+- seasonId (INTEGER)
+- stateName (VARCHAR) -- 'NS', 'LIVE', 'FT'
+- homeScore (INTEGER, nullable)
+- awayScore (INTEGER, nullable)
+- createdAt (TIMESTAMP)
+- updatedAt (TIMESTAMP)
 ```
 
 ### 7.2 Relacje
@@ -396,9 +520,11 @@ DURATIONS = {
 - `GET /api/teams/{id}/statistics` – statystyki drużyny
 
 ### Zakłady
-- `GET /api/predictions` – zakłady użytkownika
-- `POST /api/predictions` – nowy zakład
-- `POST /api/predictions/settle` – rozliczenie zakładu (admin)
+- `GET /api/predictions` – zakłady użytkownika (meczowe i ligowe)
+- `POST /api/predictions` – nowy zakład (match lub league type)
+  - Dla zakładu meczowego: `{ predictionType: "match", fixtureApiId, predictedHomeScore, predictedAwayScore, coinsWagered }`
+  - Dla zakładu ligowego: `{ predictionType: "league", leagueId, leagueName, predictedWinnerId, predictedWinnerName, predictedWinnerLogo, coinsWagered }`
+- `POST /api/predictions/settle` – rozliczenie zakładów (automatyczne)
 
 ### Sklep
 - `GET /api/shop` – lista przedmiotów w sklepie
@@ -479,37 +605,35 @@ DURATIONS = {
 ## 14. Wdrożenie i Hosting
 
 ### Platforma Produkcyjna
-- **Vercel** – hosting aplikacji Next.js
-- **Neon DB** – baza danych PostgreSQL
-- **Custom domain** – własna domena (do skonfigurowania)
-
-### Zmienne Środowiskowe
-```bash
-DATABASE_URL=           # Connection string do Neon DB
-JWT_SECRET=             # Klucz do podpisywania JWT
-NODE_ENV=production
-```
+- **Neon DB** – serverless baza danych PostgreSQL w chmurze
+  - Automatyczne backupy
+  - Skalowanie na żądanie
+  - Bezpieczne połączenie SSL
+  - Region: AWS (configurable)
 
 ### Komendy Deployment
 ```bash
 # Build produkcyjny
 npm run build
 
-# Deploy na Vercel
-vercel --prod
-
 # Migracje bazy danych
 npm run db:push
+
+# Generowanie migracji
+npm run db:generate
+
+# Start produkcyjny
+npm start
 ```
 
-## 15. Metryki Sukcesu
+## 15. Podsumowanie
 
-- **Engagement** – średni czas spędzony w aplikacji > 10 minut/sesja
-- **Retention** – powracający użytkownicy > 40% po 7 dniach
-- **Aktywność** – średnio 5+ zakładów na aktywnego użytkownika/tydzień
-- **Stabilność** – uptime > 99.5%
-- **Performance** – czas ładowania strony < 2s
+**Projekt CoinKick** łączy w sobie najlepsze praktyki tworzenia aplikacji webowych z unikalnym, angażującym modelem gamifikacji zakładów sportowych. System oferuje:
 
----
+- **Typowanie meczów** – przewidywanie dokładnych wyników z współczynnikiem 2.0x
+- **Typowanie lig** – długoterminowe zakłady na zwycięzców całych rozgrywek z współczynnikiem 5.0x
+- **System nagród** – odznaki i osiągnięcia za aktywność
+- **Personalizacja** – rozbudowany sklep z elementami wizualnymi
+- **Ranking globalny** – rywalizacja z innymi graczami
 
-**Projekt CoinBet** łączy w sobie najlepsze praktyki tworzenia aplikacji webowych z unikalnym, angażującym modelem gamifikacji zakładów sportowych, stanowiąc doskonałe środowisko do nauki, rozrywki i rywalizacji bez ryzyka finansowego.
+Aplikacja stanowi doskonałe środowisko do nauki, rozrywki i rywalizacji bez ryzyka finansowego, oferując pełnię funkcjonalności profesjonalnych platform zakładów sportowych w bezpiecznej, edukacyjnej formie.

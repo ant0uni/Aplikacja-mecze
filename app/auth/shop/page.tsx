@@ -28,8 +28,13 @@ export default function ShopPage() {
       const response = await fetch("/api/shop");
       if (response.ok) {
         const data = await response.json();
+        console.log("Shop data received:", data); // Debug log
         setOwnedItems(data.ownedItems || []);
         setCoins(data.coins || 0);
+        console.log("Coins set to:", data.coins); // Debug log
+      } else {
+        console.error("Failed to fetch shop data, status:", response.status);
+        toast.error("Failed to load shop");
       }
     } catch (error) {
       console.error("Failed to fetch shop data:", error);

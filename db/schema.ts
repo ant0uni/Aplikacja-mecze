@@ -54,12 +54,20 @@ export const predictions = pgTable("predictions", {
   userId: integer("user_id")
     .notNull()
     .references(() => users.id, { onDelete: "cascade" }),
+  predictionType: varchar("prediction_type", { length: 20 }).notNull().default("match"), // "match" or "league"
+  // For match predictions
   fixtureId: integer("fixture_id")
-    .notNull()
     .references(() => fixtures.id, { onDelete: "cascade" }),
-  fixtureApiId: integer("fixture_api_id").notNull(), // SportMonks fixture ID for easy lookup
-  predictedHomeScore: integer("predicted_home_score").notNull(),
-  predictedAwayScore: integer("predicted_away_score").notNull(),
+  fixtureApiId: integer("fixture_api_id"), // SportMonks fixture ID for easy lookup
+  predictedHomeScore: integer("predicted_home_score"),
+  predictedAwayScore: integer("predicted_away_score"),
+  // For league predictions
+  leagueId: integer("league_id"),
+  leagueName: text("league_name"),
+  predictedWinnerId: integer("predicted_winner_id"), // Team ID that will win the league
+  predictedWinnerName: text("predicted_winner_name"),
+  predictedWinnerLogo: text("predicted_winner_logo"),
+  // Common fields
   coinsWagered: integer("coins_wagered").notNull(),
   coinsWon: integer("coins_won").default(0),
   verdict: varchar("verdict", { length: 20 }).default("pending"), // "pending", "win", "lose", "partial"

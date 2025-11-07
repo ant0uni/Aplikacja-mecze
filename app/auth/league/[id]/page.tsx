@@ -10,6 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ArrowLeft, Loader2, Trophy, TrendingUp, TrendingDown, Calendar } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { ApiCache } from "@/lib/cache";
+import { LeaguePredictionDialog } from "@/components/league-prediction-dialog";
 import {
   Table,
   TableBody,
@@ -57,6 +58,7 @@ export default function LeaguePage() {
   const [upcomingMatches, setUpcomingMatches] = useState<any[]>([]);
   const [topScorers, setTopScorers] = useState<any[]>([]);
   const [liveMatches, setLiveMatches] = useState<any[]>([]);
+  const [showLeaguePredictionDialog, setShowLeaguePredictionDialog] = useState(false);
 
   useEffect(() => {
     if (params.id) {
@@ -269,6 +271,14 @@ export default function LeaguePage() {
               </div>
             </div>
           </div>
+          <Button 
+            variant="default" 
+            onClick={() => setShowLeaguePredictionDialog(true)}
+            className="bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-600 hover:to-orange-600"
+          >
+            <Trophy className="h-4 w-4 mr-2" />
+            Predict Winner
+          </Button>
           <Link href={`/auth/league/${params.id}/top-scorers`}>
             <Button variant="outline">
               <Trophy className="h-4 w-4 mr-2" />
@@ -276,6 +286,21 @@ export default function LeaguePage() {
             </Button>
           </Link>
         </div>
+
+        {/* League Prediction Dialog */}
+        <LeaguePredictionDialog
+          isOpen={showLeaguePredictionDialog}
+          onClose={() => setShowLeaguePredictionDialog(false)}
+          league={leagueInfo ? { id: leagueInfo.id, name: leagueInfo.name } : null}
+          teams={standings.map(s => ({
+            id: s.team.id,
+            name: s.team.name,
+            logo: `https://api.sofascore.com/api/v1/team/${s.team.id}/image`
+          }))}
+          onSuccess={() => {
+            setShowLeaguePredictionDialog(false);
+          }}
+        />
 
         {/* Standings Table */}
         <Card>
