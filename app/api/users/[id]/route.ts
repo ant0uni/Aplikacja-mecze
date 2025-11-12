@@ -1,10 +1,10 @@
 import { db } from "@/db";
-import { users, predictions, fixtures } from "@/db/schema";
-import { eq, and, sql } from "drizzle-orm";
+import { users, predictions } from "@/db/schema";
+import { eq, sql } from "drizzle-orm";
 import { NextRequest, NextResponse } from "next/server";
 
 export async function GET(
-  request: NextRequest,
+  _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {

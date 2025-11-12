@@ -1,8 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { fetchFromSofaScore } from "@/lib/sofascore-proxy";
 
-export async function GET(request: NextRequest) {
-  const tests: any[] = [];
+export async function GET(_request: NextRequest) {
+  const tests: Array<{
+    name: string;
+    status: string;
+    eventsCount?: number;
+    seasonsCount?: number;
+    url: string;
+    error?: string;
+  }> = [];
   
   // Test 1: Fetch today's fixtures
   try {
@@ -15,11 +22,11 @@ export async function GET(request: NextRequest) {
       eventsCount: data.events?.length || 0,
       url: `/sport/football/scheduled-events/${today}`,
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     tests.push({
       name: "Today's Fixtures",
       status: "❌ FAILED",
-      error: error.message,
+      error: error instanceof Error ? error.message : "Unknown error",
       url: `/sport/football/scheduled-events/${new Date().toISOString().split('T')[0]}`,
     });
   }
@@ -34,11 +41,11 @@ export async function GET(request: NextRequest) {
       seasonsCount: data.seasons?.length || 0,
       url: `/unique-tournament/23/seasons`,
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     tests.push({
       name: "Premier League Seasons",
       status: "❌ FAILED",
-      error: error.message,
+      error: error instanceof Error ? error.message : "Unknown error",
       url: `/unique-tournament/23/seasons`,
     });
   }

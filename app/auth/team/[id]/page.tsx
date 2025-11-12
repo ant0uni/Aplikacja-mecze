@@ -9,6 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ArrowLeft, Loader2, Users, Trophy, Calendar, TrendingUp } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { ApiCache } from "@/lib/cache";
+import { LiveMatchesCarousel } from "@/components/live-matches-carousel";
 
 interface TeamDetails {
   id: number;
@@ -82,9 +83,12 @@ export default function TeamPage() {
             id: event.id,
             home_team_name: event.homeTeam?.name || 'Home',
             away_team_name: event.awayTeam?.name || 'Away',
+            home_team_logo: event.homeTeam?.id ? `https://api.sofascore.com/api/v1/team/${event.homeTeam.id}/image` : null,
+            away_team_logo: event.awayTeam?.id ? `https://api.sofascore.com/api/v1/team/${event.awayTeam.id}/image` : null,
             home_score: event.homeScore?.current ?? 0,
             away_score: event.awayScore?.current ?? 0,
-            league_name: event.tournament?.name || 'Unknown',
+            league_name: event.tournament?.uniqueTournament?.name || event.tournament?.name || 'Unknown',
+            league_id: event.tournament?.uniqueTournament?.id || event.tournament?.id,
           }));
         },
         ApiCache.DURATIONS.SHORT,
@@ -459,49 +463,14 @@ export default function TeamPage() {
           </Card>
         )}
 
-        {/* Live Matches Scroll */}
+        {/* Live Matches Carousel */}
         {liveMatches.length > 0 && (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.4 }}
           >
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <TrendingUp className="h-5 w-5 text-red-500" />
-                  Live Matches Now
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="flex gap-3 overflow-x-auto pb-2">
-                  {liveMatches.map((match, index) => (
-                    <motion.div
-                      key={match.id}
-                      initial={{ opacity: 0, scale: 0.9 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      transition={{ delay: index * 0.05 }}
-                    >
-                      <Link href={`/auth/match/${match.id}`}>
-                        <Card className="min-w-[200px] p-3 hover:bg-muted/50 transition-all cursor-pointer group border hover:border-primary/50">
-                          <Badge variant="destructive" className="mb-2 text-xs animate-pulse">LIVE</Badge>
-                          <div className="space-y-1">
-                            <div className="flex items-center justify-between text-sm">
-                              <span className="font-medium truncate">{match.home_team_name}</span>
-                              <span className="font-bold ml-2">{match.home_score}</span>
-                            </div>
-                            <div className="flex items-center justify-between text-sm">
-                              <span className="font-medium truncate">{match.away_team_name}</span>
-                              <span className="font-bold ml-2">{match.away_score}</span>
-                            </div>
-                          </div>
-                          <div className="mt-2 text-xs text-muted-foreground truncate">{match.league_name}</div>
-                        </Card>
-                      </Link>
-                    </motion.div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
+            <LiveMatchesCarousel matches={liveMatches} />
           </motion.div>
         )}
 

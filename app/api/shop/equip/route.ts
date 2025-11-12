@@ -51,7 +51,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Equip item based on category
-    let updateFields: any = { updatedAt: new Date() };
+    const updateFields: Record<string, string | Date> = { updatedAt: new Date() };
 
     switch (category) {
       case "avatar":

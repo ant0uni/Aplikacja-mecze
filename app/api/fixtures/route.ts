@@ -31,7 +31,6 @@ export async function GET(request: NextRequest) {
     });
 
     // Get client-side filters
-    const dateFrom = searchParams.get("dateFrom");
     const dateTo = searchParams.get("dateTo");
     const leagueIds = searchParams.get("leagueIds")?.split(",").map(id => parseInt(id)).filter(id => !isNaN(id)) || [];
     const sortBy = searchParams.get("sortBy") || "starting_at";
@@ -42,7 +41,7 @@ export async function GET(request: NextRequest) {
     
     // Apply date range filter if specified
     if (dateTo) {
-      fixturesData = fixturesData.filter((f: any) => {
+      fixturesData = fixturesData.filter((f: { startTimestamp: number }) => {
         const fixtureDate = new Date(f.startTimestamp * 1000).toISOString().split('T')[0];
         return fixtureDate <= dateTo;
       });
@@ -50,8 +49,8 @@ export async function GET(request: NextRequest) {
     
     // Apply league filter if specified (using tournament.uniqueTournament.id from SofaScore)
     if (leagueIds.length > 0) {
-      fixturesData = fixturesData.filter((f: any) => 
-        leagueIds.includes(f.tournament?.uniqueTournament?.id)
+      fixturesData = fixturesData.filter((f: { tournament?: { uniqueTournament?: { id: number } } }) => 
+        leagueIds.includes(f.tournament?.uniqueTournament?.id ?? 0)
       );
     }
     
@@ -194,8 +193,8 @@ export async function GET(request: NextRequest) {
 
     // Apply sorting
     cachedFixtures.sort((a, b) => {
-      let aValue: any = a[sortBy as keyof typeof a];
-      let bValue: any = b[sortBy as keyof typeof b];
+      let aValue: string | number | Date = a[sortBy as keyof typeof a];
+      let bValue: string | number | Date = b[sortBy as keyof typeof b];
       
       // Handle date sorting
       if (sortBy === "starting_at") {
@@ -218,7 +217,7 @@ export async function GET(request: NextRequest) {
       },
       { status: 200 }
     );
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Fixtures API error:", error);
     
     // Return empty array on error so the app doesn't crash
@@ -226,7 +225,7 @@ export async function GET(request: NextRequest) {
       { 
         fixtures: [],
         count: 0,
-        error: error.message || "Failed to fetch fixtures",
+        error: error instanceof Error ? error.message : "Failed to fetch fixtures",
         warning: "Unable to fetch live data. Please try again later."
       },
       { status: 200 }

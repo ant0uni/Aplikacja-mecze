@@ -17,6 +17,7 @@ interface LiveMatch {
   home_score: number | null;
   away_score: number | null;
   league_name: string;
+  league_id?: number; // Added for clickable league link
 }
 
 interface LiveMatchesCarouselProps {
@@ -32,7 +33,6 @@ export function LiveMatchesCarousel({
 }: LiveMatchesCarouselProps) {
   const [isPaused, setIsPaused] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
-  const [scrollPosition, setScrollPosition] = useState(0);
 
   useEffect(() => {
     if (!autoScroll || isPaused || !scrollRef.current) return;
@@ -170,9 +170,20 @@ export function LiveMatchesCarousel({
                       </motion.span>
                     </div>
 
-                    {/* League Name */}
-                    <div className="text-xs text-muted-foreground truncate border-t pt-2">
-                      🏆 {match.league_name}
+                    {/* League Name - Now Clickable */}
+                    <div 
+                      className="text-xs text-muted-foreground truncate border-t pt-2"
+                      onClick={(e) => {
+                        if (match.league_id) {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          window.location.href = `/auth/league/${match.league_id}`;
+                        }
+                      }}
+                    >
+                      <span className={match.league_id ? "hover:text-primary hover:underline cursor-pointer transition-colors" : ""}>
+                        🏆 {match.league_name}
+                      </span>
                     </div>
                   </Card>
                 </Link>

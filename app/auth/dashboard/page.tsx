@@ -423,6 +423,38 @@ interface League {
   active?: boolean;
 }
 
+interface DashboardLiveMatch {
+  id: number;
+  api_id: number;
+  name: string;
+  starting_at: string;
+  home_team_name: string;
+  away_team_name: string;
+  home_team_logo?: string;
+  away_team_logo?: string;
+  home_score: number | null;
+  away_score: number | null;
+  league_name?: string;
+  state_name?: string;
+}
+
+interface Player {
+  player: {
+    id: number;
+    name: string;
+    photo?: string;
+  };
+  team?: {
+    name: string;
+    logo?: string;
+  };
+  statistics: {
+    goals?: number;
+    assists?: number;
+    rating?: number;
+  };
+}
+
 interface Fixture {
   id: number;
   api_id: number;
@@ -478,11 +510,11 @@ export default function DashboardPage() {
   const [allMatches, setAllMatches] = useState<Fixture[]>([]);
   
   // Live matches for carousel
-  const [liveMatches, setLiveMatches] = useState<any[]>([]);
+  const [liveMatches, setLiveMatches] = useState<DashboardLiveMatch[]>([]);
   
   // Top players data
-  const [topPlayers, setTopPlayers] = useState<any[]>([]);
-  const [topPlayersCache, setTopPlayersCache] = useState<Record<number, any[]>>({}); // Cache players by league ID
+  const [topPlayers, setTopPlayers] = useState<Player[]>([]);
+  const [topPlayersCache, setTopPlayersCache] = useState<Record<number, Player[]>>({}); // Cache players by league ID
   const [isLoadingPlayers, setIsLoadingPlayers] = useState(true); // Only true on initial load
   const [currentLeagueIndex, setCurrentLeagueIndex] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
@@ -607,18 +639,21 @@ export default function DashboardPage() {
       if (!aIsPredictable && bIsPredictable) return 1;
       
       // Third priority: User-selected sorting
-      let aValue: any = a[sortBy as keyof typeof a];
-      let bValue: any = b[sortBy as keyof typeof b];
+      let aValue: string | number | Date | boolean | null | undefined = a[sortBy as keyof typeof a];
+      let bValue: string | number | Date | boolean | null | undefined = b[sortBy as keyof typeof b];
       
       if (sortBy === "starting_at") {
-        aValue = new Date(aValue).getTime();
-        bValue = new Date(bValue).getTime();
+        aValue = new Date(String(aValue || 0)).getTime();
+        bValue = new Date(String(bValue || 0)).getTime();
       }
       
+      const aVal = aValue ?? 0;
+      const bVal = bValue ?? 0;
+      
       if (order === "desc") {
-        return bValue > aValue ? 1 : bValue < aValue ? -1 : 0;
+        return bVal > aVal ? 1 : bVal < aVal ? -1 : 0;
       } else {
-        return aValue > bValue ? 1 : aValue < bValue ? -1 : 0;
+        return aVal > bVal ? 1 : aVal < bVal ? -1 : 0;
       }
     });
     
@@ -746,7 +781,7 @@ export default function DashboardPage() {
       const response = await fetch("/api/predictions");
       if (response.ok) {
         const data = await response.json();
-        const predictedFixtureIds = (data.predictions || []).map((p: any) => p.fixtureApiId);
+        const predictedFixtureIds = (data.predictions || []).map((p: { fixtureApiId: number }) => p.fixtureApiId);
         setUserPredictions(predictedFixtureIds);
       }
     } catch (error) {
@@ -771,7 +806,22 @@ export default function DashboardPage() {
           const events = data.events || [];
           
           // Transform live events to fixture format (these are trending/popular)
-          return events.slice(0, 10).map((event: any) => ({
+          return events.slice(0, 10).map((event: { 
+            id: number;
+            homeTeam?: { id: number; name: string };
+            awayTeam?: { id: number; name: string };
+            startTimestamp: number;
+            slug?: string;
+            status?: { code?: number; description?: string; type?: string };
+            homeScore?: { current?: number; display?: number };
+            awayScore?: { current?: number; display?: number };
+            tournament?: {
+              id?: number;
+              name?: string;
+              uniqueTournament?: { id: number; name: string; hasStandingsGroups?: boolean; hasEventPlayerStatistics?: boolean };
+              category?: { name: string };
+            };
+          }) => ({
             id: event.id,
             api_id: event.id,
             name: `${event.homeTeam?.name || 'Home'} - ${event.awayTeam?.name || 'Away'}`,
@@ -804,15 +854,16 @@ export default function DashboardPage() {
       setPopularMatches(transformedEvents);
       
       // Also set live matches for carousel with logos
-      const liveMatchesData = transformedEvents.map((event: any) => ({
+      const liveMatchesData = transformedEvents.map((event: Fixture) => ({
         id: event.api_id,
         home_team_name: event.home_team_name || 'Home',
         away_team_name: event.away_team_name || 'Away',
-        home_team_logo: event.home_team_logo,
-        away_team_logo: event.away_team_logo,
-        home_score: event.home_score,
-        away_score: event.away_score,
+        home_team_logo: event.home_team_logo || null,
+        away_team_logo: event.away_team_logo || null,
+        home_score: event.home_score ?? null,
+        away_score: event.away_score ?? null,
         league_name: event.league_name || 'Unknown League',
+        league_id: event.league_id || null,
       }));
       setLiveMatches(liveMatchesData);
     } catch (error) {
@@ -837,13 +888,20 @@ export default function DashboardPage() {
         console.log("SofaScore API response:", data);
         
         // Transform SofaScore data to our format
-        let events = data.events || [];
+        const events = data.events || [];
         
         // Extract unique countries and leagues for filter dropdowns
         const countryMap = new Map<string, number>();
         const leagueMap = new Map<string, {id: string, name: string, country: string, count: number}>();
         
-        events.forEach((event: any) => {
+        events.forEach((event: {
+          tournament?: {
+            category?: { name?: string };
+            id?: number;
+            name?: string;
+            uniqueTournament?: { id?: number; name?: string };
+          };
+        }) => {
           const country = event.tournament?.category?.name || 'Unknown';
           const leagueId = event.tournament?.uniqueTournament?.id?.toString() || event.tournament?.id?.toString();
           const leagueName = event.tournament?.uniqueTournament?.name || event.tournament?.name || 'Unknown';
@@ -1101,7 +1159,7 @@ export default function DashboardPage() {
               transition={{ delay: 0.3, duration: 0.5 }}
               className="text-muted-foreground mt-1"
             >
-              Welcome to the game, {user?.nickname || user?.email}!
+              Welcome to the game {user?.nickname || user?.email}
             </motion.p>
           </div>
           <motion.div
@@ -1285,7 +1343,7 @@ export default function DashboardPage() {
                 ) : (
                   <AnimatePresence mode="wait">
                     <motion.div
-                      key={currentLeagueIndex}
+                      key={`league-${currentLeagueIndex}-${topLeagues[currentLeagueIndex].id}`}
                       initial={{ opacity: 0, x: 20 }}
                       animate={{ opacity: 1, x: 0 }}
                       exit={{ opacity: 0, x: -20 }}
@@ -1293,14 +1351,12 @@ export default function DashboardPage() {
                       className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4"
                     >
                     {topPlayers.map((playerData, index) => (
-                      <motion.div
-                        key={playerData.player.id}
-                        initial={{ opacity: 0, scale: 0.8 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        transition={{ delay: index * 0.05, duration: 0.3 }}
+                      <div
+                        key={`${playerData.player.id}-${currentLeagueIndex}`}
                       >
                         <Link href={`/auth/player/${playerData.player.id}`}>
                           <motion.div
+                            initial={false}
                             whileHover={{ scale: 1.05, y: -4 }}
                             transition={{ duration: 0.15, type: "spring", stiffness: 400, damping: 25 }}
                             className="text-center p-3 rounded-lg border hover:shadow-lg will-change-transform transition-shadow duration-150 cursor-pointer"
@@ -1331,7 +1387,7 @@ export default function DashboardPage() {
                             </div>
                           </motion.div>
                         </Link>
-                      </motion.div>
+                      </div>
                     ))}
                   </motion.div>
                 </AnimatePresence>
@@ -1671,7 +1727,16 @@ export default function DashboardPage() {
                           {index > 0 && index % 50 === 0 && liveMatches.length > 0 && (
                             <div className="my-4">
                               <LiveMatchesCarousel 
-                                matches={liveMatches}
+                                matches={liveMatches as Array<{
+                                  id: number;
+                                  home_team_name: string;
+                                  away_team_name: string;
+                                  home_team_logo?: string | null;
+                                  away_team_logo?: string | null;
+                                  home_score: number | null;
+                                  away_score: number | null;
+                                  league_name: string;
+                                }>}
                                 autoScroll={true}
                                 scrollSpeed={30}
                               />

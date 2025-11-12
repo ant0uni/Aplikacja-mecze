@@ -85,10 +85,10 @@ export async function GET(request: NextRequest) {
         }
       }
     );
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Leagues API error:", error);
     return NextResponse.json(
-      { error: error.message || "Failed to fetch leagues" },
+      { error: error instanceof Error ? error.message : "Failed to fetch leagues" },
       { 
         status: 500,
         headers: {

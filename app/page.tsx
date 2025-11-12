@@ -4,7 +4,6 @@ import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { Loader2 } from "lucide-react";
 
 export default function LandingPage() {
   const router = useRouter();
@@ -18,7 +17,7 @@ export default function LandingPage() {
           // User is logged in, redirect to dashboard
           router.push("/auth/dashboard");
         }
-      } catch (error) {
+      } catch {
         // User is not logged in, stay on landing page
         console.log("User not authenticated, showing landing page");
       }

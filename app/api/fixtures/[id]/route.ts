@@ -138,10 +138,10 @@ export async function GET(
     // Transform and cache the data
     const fixture = data.data;
     const participants = fixture.participant || [];
-    const homeTeam = participants.find((p: any) => p.meta?.location === "home");
-    const awayTeam = participants.find((p: any) => p.meta?.location === "away");
+    const homeTeam = participants.find((p: { meta?: { location?: string } }) => p.meta?.location === "home");
+    const awayTeam = participants.find((p: { meta?: { location?: string } }) => p.meta?.location === "away");
     const scores = fixture.scores || [];
-    const ftScore = scores.find((s: any) => s.description === "CURRENT") || scores[0];
+    const ftScore = scores.find((s: { description?: string }) => s.description === "CURRENT") || scores[0];
 
     // Cache in database
     const fixtureData = {
@@ -230,10 +230,10 @@ export async function GET(
         'Access-Control-Allow-Headers': 'Content-Type',
       }
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Fetch fixture error:", error);
     return NextResponse.json(
-      { error: "Internal server error", message: error.message },
+      { error: "Internal server error", message: error instanceof Error ? error.message : "Unknown error" },
       { 
         status: 500,
         headers: {

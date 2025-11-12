@@ -125,17 +125,13 @@ const headerProfiles: HeaderProfile[] = [
   },
 ];
 
-function getRandomHeaderProfile(): HeaderProfile {
-  return headerProfiles[Math.floor(Math.random() * headerProfiles.length)];
-}
-
 // Simple delay function
 function delay(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
 // Track last request time to add natural delays
-let lastRequestTime = 0;
+const lastRequestTime = 0;
 
 // Retry configuration
 const MAX_RETRIES = 3;

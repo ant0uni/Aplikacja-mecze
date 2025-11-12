@@ -126,7 +126,7 @@ export async function POST(request: NextRequest) {
       }
 
       // Get or create fixture in DB (optional, for caching)
-      let fixture = await db
+      const fixture = await db
         .select()
         .from(fixtures)
         .where(eq(fixtures.apiId, validatedData.fixtureApiId))
@@ -143,7 +143,22 @@ export async function POST(request: NextRequest) {
             `https://www.sofascore.com/api/v1/event/${validatedData.fixtureApiId}`
           );
           
-          let fixtureData: any = {
+          let fixtureData: {
+            apiId: number;
+            name: string;
+            startingAt: Date;
+            homeTeamName?: string;
+            awayTeamName?: string;
+            homeTeamLogo?: string;
+            awayTeamLogo?: string;
+            leagueName?: string;
+            leagueLogo?: string;
+            homeTeamId?: number;
+            awayTeamId?: number;
+            stateId?: number;
+            stateName?: string;
+            leagueId?: number;
+          } = {
             apiId: validatedData.fixtureApiId,
             name: "Match",
             startingAt: new Date(Date.now() + 86400000),
@@ -229,15 +244,8 @@ export async function POST(request: NextRequest) {
         { status: 201 }
       );
     }
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Create prediction error:", error);
-
-    if (error.name === "ZodError") {
-      return NextResponse.json(
-        { error: "Invalid input", details: error.errors },
-        { status: 400 }
-      );
-    }
 
     return NextResponse.json(
       { error: "Internal server error" },
@@ -247,7 +255,7 @@ export async function POST(request: NextRequest) {
 }
 
 // Get user's predictions
-export async function GET(request: NextRequest) {
+export async function GET(_request: NextRequest) {
   try {
     const currentUser = await getCurrentUser();
 

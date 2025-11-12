@@ -4,7 +4,7 @@ import { predictions, users, fixtures } from "@/db/schema";
 import { getCurrentUser } from "@/lib/auth";
 import { eq, and, sql } from "drizzle-orm";
 
-export async function POST(request: NextRequest) {
+export async function POST(_request: NextRequest) {
   try {
     const currentUser = await getCurrentUser();
 
@@ -32,6 +32,12 @@ export async function POST(request: NextRequest) {
 
     for (const prediction of unsettledPredictions) {
       try {
+        // Skip if no fixtureApiId
+        if (!prediction.fixtureApiId) {
+          console.log(`Prediction ${prediction.id} has no fixtureApiId, skipping`);
+          continue;
+        }
+
         // Fetch match data from SofaScore
         const response = await fetch(
           `https://www.sofascore.com/api/v1/event/${prediction.fixtureApiId}`

@@ -27,11 +27,11 @@ export async function GET(request: NextRequest) {
       },
       { status: 200 }
     );
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Seasons API error:", error);
     return NextResponse.json(
       { 
-        error: error.message || "Failed to fetch seasons",
+        error: error instanceof Error ? error.message : "Failed to fetch seasons",
         seasons: [],
       },
       { status: 200 }

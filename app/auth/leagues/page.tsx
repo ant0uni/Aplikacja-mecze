@@ -211,7 +211,7 @@ export default function LeaguesPage() {
                     ))
                   ) : (
                     <div className="text-center py-8 text-muted-foreground">
-                      No leagues found matching "{searchQuery}"
+                      No leagues found matching &quot;{searchQuery}&quot;
                     </div>
                   )}
                 </motion.div>
@@ -327,7 +327,7 @@ export default function LeaguesPage() {
               </motion.div>
               <h3 className="text-xl font-bold mb-2">Discover Trending Matches</h3>
               <p className="text-muted-foreground mb-4">
-                See what's happening right now across all leagues!
+                See what&apos;s happening right now across all leagues!
               </p>
               <Link href="/auth/dashboard">
                 <Button className="bg-gradient-to-r from-yellow-400 to-yellow-600 hover:from-yellow-500 hover:to-yellow-700 text-black font-bold shadow-lg hover:shadow-yellow-500">

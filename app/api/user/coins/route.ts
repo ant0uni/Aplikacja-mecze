@@ -40,15 +40,8 @@ export async function POST(request: NextRequest) {
       },
       { status: 200 }
     );
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Add coins error:", error);
-
-    if (error.name === "ZodError") {
-      return NextResponse.json(
-        { error: "Invalid input", details: error.errors },
-        { status: 400 }
-      );
-    }
 
     return NextResponse.json(
       { error: "Internal server error" },

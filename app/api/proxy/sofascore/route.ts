@@ -71,10 +71,10 @@ export async function GET(request: NextRequest) {
         'Cache-Control': 'public, max-age=60', // Cache for 1 minute
       },
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Proxy error:', error);
     return NextResponse.json(
-      { error: 'Internal proxy error', message: error.message },
+      { error: 'Internal proxy error', message: error instanceof Error ? error.message : 'Unknown error' },
       { status: 500 }
     );
   }

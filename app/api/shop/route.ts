@@ -143,7 +143,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Auto-equip if it's the first item of this category
-    let updateFields: any = {};
+    const updateFields: Record<string, string | Date> = {};
     if (item.category === "avatar" && user.avatar === "default") {
       updateFields.avatar = itemId;
     } else if (item.category === "background" && user.profileBackground === "default") {

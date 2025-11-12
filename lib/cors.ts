@@ -13,7 +13,7 @@ export function addCorsHeaders(response: NextResponse) {
   return response;
 }
 
-export function corsResponse(data: any, status: number = 200) {
+export function corsResponse(data: unknown, status: number = 200) {
   return NextResponse.json(data, {
     status,
     headers: corsHeaders,

@@ -8,7 +8,7 @@ interface CacheItem<T> {
 }
 
 // In-flight request tracker to prevent duplicate simultaneous requests
-const inflightRequests = new Map<string, Promise<any>>();
+const inflightRequests = new Map<string, Promise<unknown>>();
 
 export class ApiCache {
   private static readonly PREFIX = 'football_cache_';
@@ -61,13 +61,13 @@ export class ApiCache {
         const cached = localStorage.getItem(fullKey);
         if (!cached) return;
 
-        const cacheItem: CacheItem<any> = JSON.parse(cached);
+        const cacheItem: CacheItem<unknown> = JSON.parse(cached);
         cacheEntries.push({
           key: fullKey,
           timestamp: cacheItem.timestamp,
           size: cached.length * 2,
         });
-      } catch (error) {
+      } catch {
         // Invalid entry, mark for removal
         localStorage.removeItem(fullKey);
       }
@@ -205,7 +205,7 @@ export class ApiCache {
     // Check if there's already an in-flight request for this key
     const existingRequest = inflightRequests.get(key);
     if (existingRequest) {
-      return existingRequest;
+      return existingRequest as Promise<T>;
     }
 
     // No cache, fetch fresh data with deduplication
@@ -248,11 +248,11 @@ export class ApiCache {
         const cached = localStorage.getItem(fullKey);
         if (!cached) return;
 
-        const cacheItem: CacheItem<any> = JSON.parse(cached);
+        const cacheItem: CacheItem<unknown> = JSON.parse(cached);
         if (now - cacheItem.timestamp > cacheItem.ttl) {
           localStorage.removeItem(fullKey);
         }
-      } catch (error) {
+      } catch {
         // Invalid cache entry, remove it
         localStorage.removeItem(fullKey);
       }
@@ -321,14 +321,14 @@ export class ApiCache {
       totalSize += size;
 
       try {
-        const cacheItem: CacheItem<any> = JSON.parse(cached);
+        const cacheItem: CacheItem<unknown> = JSON.parse(cached);
         items.push({
           key: fullKey.replace(this.PREFIX, ''),
           size,
           sizeMB: size / 1024 / 1024,
           age: Date.now() - cacheItem.timestamp,
         });
-      } catch (error) {
+      } catch {
         // Invalid entry
         items.push({
           key: fullKey.replace(this.PREFIX, ''),

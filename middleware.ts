@@ -12,7 +12,6 @@ export async function middleware(request: NextRequest) {
   const token = request.cookies.get("auth-token")?.value;
 
   // Check if current path is public
-  const isPublicPath = publicPaths.some((path) => pathname === path || pathname.startsWith(path));
   const isProtectedPath = protectedPaths.some((path) => pathname.startsWith(path));
 
   // If no token and trying to access protected route, redirect to login
