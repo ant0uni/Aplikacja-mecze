@@ -1,63 +1,14 @@
-import { NextRequest, NextResponse } from "next/server";
-import { fetchFromSofaScore } from "@/lib/sofascore-proxy";
+import { NextResponse } from "next/server";
 
-export async function GET(_request: NextRequest) {
-  const tests: Array<{
-    name: string;
-    status: string;
-    eventsCount?: number;
-    seasonsCount?: number;
-    url: string;
-    error?: string;
-  }> = [];
-  
-  // Test 1: Fetch today's fixtures
-  try {
-    const today = new Date().toISOString().split('T')[0];
-    const response = await fetchFromSofaScore(`/sport/football/scheduled-events/${today}`);
-    const data = await response.json();
-    tests.push({
-      name: "Today's Fixtures",
-      status: "✅ SUCCESS",
-      eventsCount: data.events?.length || 0,
-      url: `/sport/football/scheduled-events/${today}`,
-    });
-  } catch (error: unknown) {
-    tests.push({
-      name: "Today's Fixtures",
-      status: "❌ FAILED",
-      error: error instanceof Error ? error.message : "Unknown error",
-      url: `/sport/football/scheduled-events/${new Date().toISOString().split('T')[0]}`,
-    });
-  }
-
-  // Test 2: Fetch Premier League seasons
-  try {
-    const response = await fetchFromSofaScore(`/unique-tournament/23/seasons`);
-    const data = await response.json();
-    tests.push({
-      name: "Premier League Seasons",
-      status: "✅ SUCCESS",
-      seasonsCount: data.seasons?.length || 0,
-      url: `/unique-tournament/23/seasons`,
-    });
-  } catch (error: unknown) {
-    tests.push({
-      name: "Premier League Seasons",
-      status: "❌ FAILED",
-      error: error instanceof Error ? error.message : "Unknown error",
-      url: `/unique-tournament/23/seasons`,
-    });
-  }
-
-  const allPassed = tests.every(test => test.status.includes("SUCCESS"));
-
-  return NextResponse.json(
-    {
-      overall: allPassed ? "✅ ALL TESTS PASSED" : "❌ SOME TESTS FAILED",
-      timestamp: new Date().toISOString(),
-      tests,
-    },
-    { status: 200 }
-  );
+// Test route for SofaScore API - now client-side
+export async function GET() {
+  return NextResponse.json({
+    message: "SofaScore API testing should be done client-side",
+    instructions: "Use browser DevTools Network tab to test SofaScore endpoints",
+    endpoints: [
+      "https://www.sofascore.com/api/v1/sport/football/scheduled-events/{date}",
+      "https://www.sofascore.com/api/v1/unique-tournament/{id}/seasons",
+      "https://www.sofascore.com/api/v1/event/{id}"
+    ]
+  }, { status: 200 });
 }

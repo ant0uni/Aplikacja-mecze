@@ -1,11 +1,13 @@
-import { NextRequest, NextResponse } from "next/server";
-import { fetchFromSofaScore } from "@/lib/sofascore-proxy";
+import { NextResponse } from "next/server";
 
-// Get team statistics
-export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+// Client should fetch directly from SofaScore
+export async function GET() {
+  return NextResponse.json({
+    message: "Fetch directly from SofaScore on client",
+    endpoint: "https://www.sofascore.com/api/v1/team/{id}/statistics",
+    note: "This route is deprecated - use client-side fetching"
+  }, { status: 200 });
+}
   try {
     const { id } = await params;
     const teamId = id;

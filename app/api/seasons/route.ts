@@ -1,40 +1,10 @@
-import { NextRequest, NextResponse } from "next/server";
-import { fetchFromSofaScore } from "@/lib/sofascore-proxy";
-import { handleOptions } from "@/lib/cors";
+import { NextResponse } from "next/server";
 
-export async function OPTIONS() {
-  return handleOptions();
-}
-
-export async function GET(request: NextRequest) {
-  try {
-    const { searchParams } = new URL(request.url);
-    const tournamentId = searchParams.get("id") || "23"; // Default to Premier League
-    
-    console.log("Fetching seasons from SofaScore for tournament:", tournamentId);
-
-    const response = await fetchFromSofaScore(`/unique-tournament/${tournamentId}/seasons`);
-    const data = await response.json();
-
-    console.log("SofaScore seasons response:", {
-      seasonsCount: data.seasons?.length || 0,
-    });
-
-    return NextResponse.json(
-      {
-        seasons: data.seasons || [],
-        tournament: tournamentId,
-      },
-      { status: 200 }
-    );
-  } catch (error: unknown) {
-    console.error("Seasons API error:", error);
-    return NextResponse.json(
-      { 
-        error: error instanceof Error ? error.message : "Failed to fetch seasons",
-        seasons: [],
-      },
-      { status: 200 }
-    );
-  }
+// Client should fetch directly from SofaScore
+export async function GET() {
+  return NextResponse.json({
+    message: "Fetch directly from SofaScore on client",
+    endpoint: "https://www.sofascore.com/api/v1/unique-tournament/{id}/seasons",
+    note: "This route is deprecated - use client-side fetching"
+  }, { status: 200 });
 }

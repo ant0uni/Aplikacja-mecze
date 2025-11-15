@@ -62,9 +62,9 @@ export async function POST(request: NextRequest) {
   } catch (error: unknown) {
     console.error("Login error:", error);
 
-    if (error instanceof Error && error.name === "ZodError") {
+    if (error instanceof Error && 'errors' in error) {
       return NextResponse.json(
-        { error: "Invalid input", details: error.errors },
+        { error: "Invalid input", details: (error as { errors: unknown }).errors },
         { status: 400 }
       );
     }
