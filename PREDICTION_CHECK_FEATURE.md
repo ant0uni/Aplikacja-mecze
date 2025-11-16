@@ -1,16 +1,18 @@
-# Prediction Check & Conditional Badge Display
+# Prediction Verification & Conditional Badge Display
 
-## Changes Summary
+## Overview
+This document outlines two major features: conditional display of league feature badges and manual prediction result checking functionality.
 
-### 1. Conditional Badge Display on Dashboard
+## Part 1: Conditional Badge Display on Dashboard
 
-**Problem**: Standings and Top Scorers badges were shown for all leagues, even when those features weren't available.
+### Problem Identified
+Previously, "Standings" and "Top Scorers" badges were shown for ALL leagues, even when those features weren't actually available for that specific tournament.
 
-**Solution**: Added conditional rendering based on tournament capabilities.
+### Solution Implemented ✅
 
-#### Implementation Details
+**Implementation Location:** Dashboard (`app/auth/dashboard/page.tsx`)
 
-**New Fixture Properties**:
+**New Fixture Properties:**
 ```typescript
 interface Fixture {
   // ... existing properties
@@ -19,14 +21,14 @@ interface Fixture {
 }
 ```
 
-**Data Extraction**:
+**Data Extraction from SofaScore API:**
 ```typescript
 has_standings: event.tournament?.uniqueTournament?.hasStandingsGroups || 
                event.tournament?.uniqueTournament?.hasPerformanceGraphFeature || false,
 has_top_scorers: event.tournament?.uniqueTournament?.hasEventPlayerStatistics || false,
 ```
 
-**Conditional Rendering**:
+**Conditional Rendering:**
 ```tsx
 {fixture.league_id && (
   <>
@@ -48,17 +50,16 @@ has_top_scorers: event.tournament?.uniqueTournament?.hasEventPlayerStatistics ||
 )}
 ```
 
-**Result**: Only leagues that support standings/top scorers will show those badges.
+**Result:** Only leagues with actual standings/top scorers support show those badges, providing a better user experience.
 
 ---
 
-### 2. Manual Prediction Check Feature
+## Part 2: Manual Prediction Result Checking
 
-**Problem**: Users couldn't verify if their predictions won or lost without manual database settlement.
+### Problem Identified
+Users couldn't manually verify if their predictions won or lost without waiting for automatic settlement or checking match results separately.
 
-**Solution**: Added "Check Result Manually" button that fetches real-time match data from SofaScore API.
-
-#### Implementation Details
+### Solution Implemented ✅
 
 **Extended Prediction Interface**:
 ```typescript

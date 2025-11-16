@@ -1,4 +1,11 @@
-# Projekt Technologii Sieciowych – „CoinKick"
+# Projekt – „CoinKick"
+## Kompleksowa Dokumentacja Projektu
+
+**Wersja:** 1.0  
+**Ostatnia aktualizacja:** Listopad 2024  
+**Status:** Gotowy do produkcji
+
+---
 
 ## 1. Wstęp
 
@@ -8,6 +15,15 @@ Projekt koncentruje się na wykorzystaniu zaawansowanych technologii sieciowych,
 
 Aplikacja została zaprojektowana z myślą o edukacji i rozrywce, oferując pełnię funkcjonalności profesjonalnych platform zakładów sportowych bez elementów hazardowych i ryzyka finansowego.
 
+### 1.1 Kluczowe Cechy
+
+- **Brak prawdziwych pieniędzy** – wszystkie transakcje używają wirtualnych "coinów"
+- **Cel edukacyjny** – nauka o przewidywaniach sportowych i statystykach
+- **Gamifikacja** – zdobywanie coinów, odznak i personalizacja profilu
+- **Funkcje społecznościowe** – globalny ranking i publiczne profile
+
+---
+
 ## 2. Opis Koncepcyjny
 
 ### 2.1 Główne Funkcjonalności
@@ -15,15 +31,20 @@ Aplikacja została zaprojektowana z myślą o edukacji i rozrywce, oferując pe�
 Aplikacja umożliwia użytkownikowi:
 
 - **Rejestrację i logowanie** – bezpieczny system autoryzacji z wykorzystaniem JWT oraz szyfrowanych haseł
-- **Przeglądanie wydarzeń sportowych** – dostęp do rozgrywek z top 5 europejskich lig piłkarskich (Premier League, La Liga, Bundesliga, Serie A, Ligue 1)
+- **Przeglądanie wydarzeń sportowych** – dostęp do rozgrywek ze wszystkich lig dostępnych w SofaScore API
 - **Obstawianie wyników meczów** – przewidywanie dokładnego wyniku meczu z określoną liczbą coinów
 - **Obstawianie zwycięzców lig** – długoterminowe zakłady na zespół, który wygra całą ligę
-- **Śledzenie meczów na żywo** – karuzela na żywo z bieżącymi spotkaniami
-- **System nagród i odznak** – zdobywanie osiągnięć za poprawne typy i aktywność
-- **Sklep z personalizacją** – możliwość zakupu awatarów, ramek, efektów wizualnych, tytułów i odznak
+- **Śledzenie meczów na żywo** – karuzela z bieżącymi spotkaniami z auto-odświeżaniem
+- **Popup wyjścia** – wyświetlanie trwających meczów gdy użytkownik próbuje opuścić stronę
+- **System nagród i odznak** – automatyczne zdobywanie 6 różnych osiągnięć
+- **Sklep z personalizacją** – zakup awatarów, ramek, efektów wizualnych, tytułów (50+ przedmiotów)
 - **Ranking globalny** – rywalizacja z innymi graczami na podstawie liczby zdobytych coinów
 - **Profile publiczne** – przeglądanie statystyk i osiągnięć innych użytkowników
 - **Personalizacja profilu** – możliwość wyposażenia profilu w zakupione elementy wizualne
+- **Zaawansowane filtrowanie** – filtrowanie meczów po kraju, lidze, drużynie
+- **Tabele ligowe** – pełne tabele ze strefami kolorystycznymi
+- **Najlepsi strzelcy** – top 20 strzelców każdej ligi
+- **Statystyki H2H** – historia meczów bezpośrednich
 
 ### 2.2 System Coinów Startowych
 
@@ -33,19 +54,21 @@ Każdy nowo zarejestrowany użytkownik otrzymuje **100 coinów startowych**, kt�
 
 #### Zdobywanie Coinów
 
-**1. Typowanie Meczów (Predictions)**
-- Użytkownik stawia określoną liczbę coinów na przewidywany wynik meczu (np. 3:1)
-- Po zakończeniu meczu następuje automatyczne rozliczenie:
+**1. Typowanie Meczów (Match Predictions)**
+- Użytkownik stawia określoną liczbę coinów na przewidywany dokładny wynik meczu (np. 3:1)
+- Minimalna stawka: **10 coinów**
+- Po zakończeniu meczu następuje automatyczne lub manualne rozliczenie:
   - **Dokładne trafienie wyniku** (np. przewidział 3:1, wynik 3:1): 
     - Zwrot stawki + wygrana = `postawione coiny × 2.0`
-    - Przykład: 50 coinów × 2.0 = **100 coinów wygranej**
+    - Przykład: 50 coinów × 2.0 = **100 coinów wygranej** (50 coinów zwrotu + 50 coinów nagrody)
   - **Błędne trafienie**: 
     - Utrata postawionych coinów
     - Przykład: postawiono 50 coinów → **-50 coinów**
 
-**2. Typowanie Zwycięzcy Ligi**
+**2. Typowanie Zwycięzcy Ligi (League Predictions)**
 - Użytkownik przewiduje, która drużyna wygra całą ligę (np. Premier League)
-- Można postawić tylko raz na daną ligę
+- Minimalna stawka: **10 coinów**
+- Można postawić tylko **raz na daną ligę** (nie można zmienić)
 - Rozliczenie następuje na koniec sezonu:
   - **Poprawne wytypowanie zwycięzcy ligi**: 
     - Zwrot stawki + wygrana = `postawione coiny × 5.0`
@@ -54,21 +77,46 @@ Każdy nowo zarejestrowany użytkownik otrzymuje **100 coinów startowych**, kt�
     - Utrata postawionych coinów
     - Przykład: postawiono 100 coinów → **-100 coinów**
 
-**3. Osiągnięcia i Odznaki**
-- Zdobycie odznaki: **+50 coinów**
-- Seria 5 poprawnych typów: **+100 coinów (odznaka "Szczęśliwy Typer")**
-- Seria 10 poprawnych typów: **+250 coinów (odznaka "Prediction Streak")**
-- 100 poprawnych typów w historii: **+500 coinów (odznaka "Football Expert")**
+**3. Osiągnięcia i Odznaki (Badges)**
+
+System automatycznie przyznaje odznaki za osiągnięcia:
+
+| Odznaka | Warunek | Ikona |
+|---------|---------|-------|
+| Always The Winner | 10 wygranych z rzędu | 🏆 |
+| Veteran Predictor | 100+ typów | 🎖️ |
+| Sharpshooter | 75%+ skuteczność (min. 20 typów) | 🎯 |
+| Coin Millionaire | Zdobycie 10,000+ coinów | 💰 |
+| Lucky Streak | 5 wygranych z rzędu | 🍀 |
+| Badge Collector | Posiadanie 5+ odznak | 📛 |
+
+*Uwaga: Odznaki są automatycznie przyznawane po spełnieniu warunków, ale nie dają dodatkowych coinów - są tylko osiągnięciami.*
 
 #### Tracenie Coinów
 
 **1. Wydatki w Sklepie**
-- Zakup awatarów: **-50 do -200 coinów**
-- Zakup teł profilu: **-100 do -500 coinów**
-- Zakup ramek: **-150 do -300 coinów**
-- Zakup efektów zwycięstwa: **-200 do -400 coinów**
-- Zakup tytułów: **-300 do -1000 coinów**
-- Zakup odznak: **-500 do -2000 coinów**
+
+System sklepu zawiera 50+ przedmiotów w 5 kategoriach:
+
+**Avatary (10 przedmiotów)**
+- Zakres cen: 3,000 - 12,000 coinów
+- Przykłady: Golden Fan (10,000), Retro Player (7,500), Seasonal Exclusive (12,000)
+
+**Tła Profilu (10 przedmiotów)**
+- Zakres cen: 5,000 - 12,000 coinów
+- Przykłady: Champions Gold (12,000), Stadium Night (8,000), Ocean Blue (5,000)
+
+**Ramki Awatara (10 przedmiotów)**
+- Zakres cen: 7,000 - 15,000 coinów
+- Przykłady: Diamond Elite (15,000), Golden Border (8,000), Fire Ring (7,000)
+
+**Efekty Zwycięstwa (10 przedmiotów)**
+- Zakres cen: 6,000 - 11,000 coinów
+- Przykłady: Gold Rain (11,000), Fireworks (9,000), Confetti (6,000)
+
+**Tytuły Profilowe (10 przedmiotów)**
+- Zakres cen: 8,000 - 20,000 coinów
+- Przykłady: "Legend" (20,000), "Champion" (18,000), "Master Predictor" (15,000)
 
 **2. Przegrane Zakłady**
 - Każdy błędny typ meczu skutkuje utratą postawionych coinów
@@ -77,12 +125,14 @@ Każdy nowo zarejestrowany użytkownik otrzymuje **100 coinów startowych**, kt�
 #### Przykładowy Scenariusz
 
 Użytkownik startuje z **100 coinami**:
-1. Stawia 30 coinów na mecz Arsenal vs Chelsea (typ 2:1) → mecz kończy się 2:1 → **+60 coinów** (razem: 130)
-2. Stawia 20 coinów na mecz Barcelona vs Real (typ 3:0) → mecz kończy się 2:1 → **-20 coinów** (razem: 110)
-3. Zdobywa odznakę "Pierwszy Typ" → **+50 coinów** (razem: 160)
-4. Kupuje nowy awatar za 80 coinów → **-80 coinów** (razem: 80)
+1. Stawia 30 coinów na mecz Arsenal vs Chelsea (typ 2:1) → mecz kończy się 2:1 → **+60 coinów** (razem: 160)
+2. Stawia 20 coinów na mecz Barcelona vs Real (typ 3:0) → mecz kończy się 2:1 → **-20 coinów** (razem: 140)
+3. Zdobywa odznakę "Lucky Streak" (5 wygranych z rzędu) → **+0 coinów** (tylko osiągnięcie) (razem: 140)
+4. Kupuje nowy awatar "Retro Player" za 7,500 coinów → nie stać (za mało coinów)
 5. Stawia 50 coinów na zwycięzcę Premier League (Man City) → czeka na koniec sezonu
-6. Na koniec sezonu Man City wygrywa → **+250 coinów** (50 × 5.0) (razem: 330)
+6. Kontynuuje typowanie i zbiera coiny...
+7. Na koniec sezonu Man City wygrywa → **+250 coinów** (50 × 5.0) (razem: 390)
+8. Kupuje awatar za 3,000 coinów → **-3,000 coinów** (potrzeba więcej wygranych)
 
 System został zaprojektowany tak, aby użytkownik mógł przez dłuższy czas korzystać z aplikacji, a jednocześnie odczuwał wartość podejmowanych decyzji.
 
@@ -112,55 +162,20 @@ Projekt został zbudowany w oparciu o nowoczesne technologie webowe:
 
 ### 3.2 Architektura Aplikacji
 
-Aplikacja została zaprojektowana w modelu **client-server** z następującymi warstwami:
+Aplikacja została zaprojektowana w modelu **client-server** z trzema głównymi warstwami:
 
-```
-┌─────────────────────────────────────────────┐
-│           Frontend (Next.js Client)          │
-│  - React Components                          │
-│  - State Management (React Hooks)            │
-│  - Client-side Routing                       │
-└─────────────────┬───────────────────────────┘
-                  │ HTTPS
-┌─────────────────▼───────────────────────────┐
-│        API Layer (Next.js API Routes)        │
-│  - Authentication (JWT)                      │
-│  - Business Logic                            │
-│  - Validation (Zod)                          │
-│  - Caching (ApiCache)                        │
-└─────────────────┬───────────────────────────┘
-                  │
-        ┌─────────┴──────────┐
-        │                    │
-┌───────▼────────┐  ┌────────▼──────────┐
-│  PostgreSQL DB  │  │  SofaScore API    │
-│  (Neon)         │  │  (via Proxy)      │
-│  - Users        │  │  - Fixtures       │
-│  - Predictions  │  │  - Standings      │
-│  - Shop Items   │  │  - Statistics     │
-└─────────────────┘  └───────────────────┘
-```
+1. **Frontend (Next.js)** – interfejs użytkownika z komponentami React
+2. **API Layer** – logika biznesowa, autoryzacja, walidacja
+3. **Baza danych** – PostgreSQL (Neon) dla danych użytkowników i zakładów
+4. **SofaScore API** – zewnętrzne źródło danych sportowych
 
 ### 3.3 Aktualizacja Wyników w Czasie Rzeczywistym
 
-Aktualizacja wyników meczów odbywa się poprzez integrację z **SofaScore API**, które dostarcza dane sportowe z minimalnym opóźnieniem:
+Aktualizacja wyników meczów odbywa się poprzez integrację z **SofaScore API**:
 
 1. **Pobieranie danych** – system okresowo odpytuje API o aktualny stan rozgrywek
-2. **System cache** – implementacja wielopoziomowego cachowania (2 minuty, 1 godzina, 24 godziny) redukuje liczbę zapytań
-3. **Proxy server** – własna warstwa proxy zapewnia:
-   - Omijanie ochrony anti-bot SofaScore
-   - Unikanie problemów z CORS
-   - Centralizację logowania i obsługi błędów
-4. **Automatyczna synchronizacja** – wyniki są pobierane według potrzeby podczas nawigacji użytkownika
-
-#### Endpointy API
-
-System wykorzystuje następujące endpointy SofaScore:
-- `/sport/football/scheduled-events/{date}` – mecze zaplanowane na dany dzień
-- `/api/v1/unique-tournament/{id}/seasons` – sezony dla danej ligi
-- `/api/v1/unique-tournament/{id}/season/{seasonId}/standings/total` – tabela ligowa
-- `/api/v1/team/{id}/statistics` – statystyki drużyny
-- `/api/v1/player/{id}/transfers` – historia transferów zawodnika
+2. **System cache** – wielopoziomowe cachowanie redukuje liczbę zapytań
+3. **Automatyczna synchronizacja** – wyniki są pobierane w czasie rzeczywistym
 
 ## 4. System Coinów i Mechanizm Zakładów
 
@@ -204,40 +219,15 @@ Użytkownik może typować, która drużyna wygra całą ligę:
 
 ### 4.4 Rozliczanie Zakładów
 
-System automatycznie rozlicza zakłady zgodnie z następującą logiką:
+System automatycznie rozlicza zakłady po zakończeniu meczu lub sezonu ligowego:
 
-**Rozliczanie Zakładów Meczowych:**
-```typescript
-// Automatyczne rozliczanie po zakończeniu meczu
-if (prediction.predictedHomeScore === match.homeScore && 
-    prediction.predictedAwayScore === match.awayScore) {
-  // Dokładne trafienie wyniku
-  const winAmount = prediction.coinsWagered * 2.0;
-  userCoins += winAmount;
-  prediction.status = 'won';
-  prediction.coinsWon = winAmount;
-} else {
-  // Błędny typ
-  prediction.status = 'lost';
-  prediction.coinsWon = 0;
-}
-```
+**Zakłady Meczowe:**
+- Dokładne trafienie wyniku → wygrana 2.0x stawki
+- Błędny typ → utrata postawionych coinów
 
-**Rozliczanie Zakładów Ligowych:**
-```typescript
-// Automatyczne rozliczanie po zakończeniu sezonu
-if (prediction.predictedWinnerId === league.championTeamId) {
-  // Poprawne wytypowanie zwycięzcy
-  const winAmount = prediction.coinsWagered * 5.0;
-  userCoins += winAmount;
-  prediction.status = 'won';
-  prediction.coinsWon = winAmount;
-} else {
-  // Błędne wytypowanie
-  prediction.status = 'lost';
-  prediction.coinsWon = 0;
-}
-```
+**Zakłady Ligowe:**
+- Poprawne wytypowanie zwycięzcy → wygrana 5.0x stawki
+- Błędne wytypowanie → utrata postawionych coinów
 
 W przypadku:
 - **Wygranej zakładu meczowego** – zwrot stawki + wygrana (2.0x stawki)
@@ -249,70 +239,31 @@ W przypadku:
 
 Aplikacja oferuje rozbudowany sklep z elementami personalizacji:
 
-#### Kategorie Produktów i Ceny
+#### Kategorie Produktów
 
-1. **Awatary** (50–200 coinów)
-   - `default` – Domyślny (darmowy)
-   - `golden-ball` – Złota Piłka (100 coinów)
-   - `champion` – Mistrz (150 coinów)
-   - `legend` – Legenda (200 coinów)
+Sklep oferuje 50+ przedmiotów w 5 kategoriach:
 
-2. **Tła profilu** (100–500 coinów)
-   - `default` – Domyślne (darmowe)
-   - `champions-gold` – Champions Gold (200 coinów)
-   - `ocean-blue` – Ocean Blue (150 coinów)
-   - `fire-red` – Fire Red (250 coinów)
-   - `emerald-green` – Emerald Green (200 coinów)
-   - `royal-purple` – Royal Purple (300 coinów)
+1. **Awatary** – zakres cen: 3,000–12,000 coinów
+2. **Tła profilu** – zakres cen: 5,000–12,000 coinów
+3. **Ramki awatarów** – zakres cen: 7,000–15,000 coinów
+4. **Efekty zwycięstwa** – zakres cen: 6,000–11,000 coinów
+5. **Tytuły profilowe** – zakres cen: 8,000–20,000 coinów
 
-3. **Ramki awatarów** (150–300 coinów)
-   - `none` – Brak (darmowa)
-   - `gold-frame` – Złota Ramka (200 coinów)
-   - `diamond-frame` – Diamentowa Ramka (300 coinów)
-   - `fire-frame` – Ognista Ramka (250 coinów)
-
-4. **Efekty zwycięstwa** (200–400 coinów)
-   - `none` – Brak (darmowy)
-   - `sparkle` – Iskry (250 coinów)
-   - `confetti` – Konfetti (300 coinów)
-   - `fireworks` – Fajerwerki (400 coinów)
-
-5. **Tytuły** (300–1000 coinów)
-   - `prediction-master` – Mistrz Typowania (500 coinów)
-   - `bet-king` – Król Zakładów (800 coinów)
-   - `legend-status` – Status Legendy (1000 coinów)
-
-6. **Odznaki** (500–2000 coinów)
-   - `big-winner` – Wielki Zwycięzca (1000 coinów)
-   - `streak-master` – Mistrz Serii (1500 coinów)
-   - `vip-member` – Członek VIP (2000 coinów)
-
-Wszystkie zakupione elementy trafiają do inwentarza użytkownika (`ownedItems`) i mogą być dowolnie wyposażane lub zdejmowane z profilu.
+Wszystkie zakupione elementy trafiają do inwentarza użytkownika i mogą być dowolnie wyposażane lub zdejmowane z profilu.
 
 ## 5. Nagrody i System Osiągnięć
 
-### 5.1 Typy Odznak
+### 5.1 System Odznak
 
-System odznak motywuje użytkowników do aktywności:
+Aplikacja oferuje 6 automatycznych odznak za osiągnięcia:
+- Always The Winner (10 wygranych z rzędu)
+- Veteran Predictor (100+ typów)
+- Sharpshooter (75%+ skuteczność)
+- Coin Millionaire (10,000+ coinów)
+- Lucky Streak (5 wygranych z rzędu)
+- Badge Collector (5+ odznak)
 
-- **„Szczęśliwy Typer"** – 5 poprawnych zakładów z rzędu
-- **„Big Winner"** – wygrana powyżej 1000 coinów w jednym zakładzie
-- **„Prediction Streak"** – 10 poprawnych typów pod rząd
-- **„Early Adopter"** – rejestracja we wczesnej fazie projektu
-- **„Football Expert"** – 100 poprawnych typów w historii
-- **„Lucky Charm"** – wygrana zakładu z współczynnikiem 3.0+
-- **„VIP Member"** – posiadanie ponad 10000 coinów
-- **„Top 10"** – obecność w pierwszej dziesiątce rankingu
-
-### 5.2 Poziomy Doświadczenia
-
-Użytkownik zdobywa punkty doświadczenia (XP) za:
-- Każdy obstawiony mecz (+10 XP)
-- Poprawny typ (+50 XP)
-- Zdobycie odznaki (+100 XP)
-- Codzienne logowanie (+5 XP)
-
-Poziomy odblokowują specjalne nagrody i tytuły.
+Odznaki są automatycznie przyznawane i widoczne na profilu użytkownika.
 
 ## 6. Model Rozgrywki Online i Ranking
 
@@ -325,14 +276,7 @@ Aplikacja prowadzi globalny ranking użytkowników bazujący na:
 
 Ranking jest aktualizowany w czasie rzeczywistym i dostępny publicznie dla wszystkich użytkowników.
 
-### 6.2 Ranking Tygodniowy
-
-Co tydzień uruchamiany jest mini-turniej:
-- Resetowanie punktów tygodniowych
-- 10 najlepszych graczy otrzymuje bonus coinów (1000, 500, 250, etc.)
-- Specjalne odznaki dla zwycięzców
-
-### 6.3 Profile Publiczne
+### 6.2 Profile Publiczne
 
 Każdy użytkownik ma publiczny profil zawierający:
 - Awatar i personalizacje wizualne
@@ -345,77 +289,26 @@ Profil można przeglądać bez logowania, co sprzyja rywalizacji społecznościo
 
 ## 7. Architektura Bazy Danych
 
-### 7.1 Schemat Tabel
+Aplikacja wykorzystuje PostgreSQL (Neon DB) z trzema głównymi tabelami:
 
-#### Tabela `users`
-```sql
-- id (SERIAL PRIMARY KEY)
-- email (VARCHAR, UNIQUE)
-- password (TEXT) -- bcrypt hash
-- nickname (VARCHAR)
-- coins (INTEGER, DEFAULT 1000)
-- ownedItems (TEXT[]) -- ID posiadanych przedmiotów
-- badges (TEXT[]) -- ID zdobytych odznak
-- avatar (TEXT) -- ID aktywnego awatara
-- profileBackground (TEXT)
-- avatarFrame (TEXT)
-- victoryEffect (TEXT)
-- profileTitle (TEXT)
-- createdAt (TIMESTAMP)
-- updatedAt (TIMESTAMP)
-```
+### 7.1 Tabele
 
-#### Tabela `predictions`
-```sql
-- id (SERIAL PRIMARY KEY)
-- userId (INTEGER, FOREIGN KEY)
-- predictionType (VARCHAR) -- 'match' lub 'league'
--- Dla zakładów meczowych:
-- fixtureId (INTEGER, FOREIGN KEY, nullable)
-- fixtureApiId (INTEGER, nullable)
-- predictedHomeScore (INTEGER, nullable)
-- predictedAwayScore (INTEGER, nullable)
--- Dla zakładów ligowych:
-- leagueId (INTEGER, nullable)
-- leagueName (TEXT, nullable)
-- predictedWinnerId (INTEGER, nullable)
-- predictedWinnerName (TEXT, nullable)
-- predictedWinnerLogo (TEXT, nullable)
--- Wspólne pola:
-- coinsWagered (INTEGER) -- liczba postawionych coinów
-- coinsWon (INTEGER, DEFAULT 0) -- wygrana
-- verdict (VARCHAR) -- 'pending', 'win', 'lose'
-- isSettled (BOOLEAN) -- czy rozliczony
-- createdAt (TIMESTAMP)
-- updatedAt (TIMESTAMP)
-```
+**Tabela Users** – przechowuje dane użytkowników:
+- Informacje logowania (email, hasło)
+- Saldo coinów
+- Posiadane przedmioty i odznaki
+- Aktualnie wyposażone elementy personalizacji
 
-#### Tabela `fixtures`
-```sql
-- id (SERIAL PRIMARY KEY)
-- apiId (INTEGER, UNIQUE) -- SofaScore ID
-- homeTeamId (INTEGER)
-- homeTeamName (TEXT)
-- homeTeamLogo (TEXT)
-- awayTeamId (INTEGER)
-- awayTeamName (TEXT)
-- awayTeamLogo (TEXT)
-- startingAt (TIMESTAMP)
-- leagueId (INTEGER)
-- leagueName (TEXT)
-- seasonId (INTEGER)
-- stateName (VARCHAR) -- 'NS', 'LIVE', 'FT'
-- homeScore (INTEGER, nullable)
-- awayScore (INTEGER, nullable)
-- createdAt (TIMESTAMP)
-- updatedAt (TIMESTAMP)
-```
+**Tabela Predictions** – przechowuje zakłady:
+- Typ zakładu (mecz lub liga)
+- Przewidywane wyniki
+- Postawione coiny
+- Status rozliczenia
 
-### 7.2 Relacje
-
-- Użytkownik → Predictions (1:N)
-- Fixture → Predictions (1:N)
-- Cascade delete: usunięcie użytkownika usuwa jego zakłady
+**Tabela Fixtures** – cache danych meczowych:
+- Informacje o meczach z SofaScore
+- Drużyny, wyniki, ligi
+- Czasy rozpoczęcia
 
 ## 8. Bezpieczeństwo i Walidacja
 
@@ -428,26 +321,18 @@ Profil można przeglądać bez logowania, co sprzyja rywalizacji społecznościo
 5. **Ochrona przed SQL Injection** – Drizzle ORM z parametryzowanymi zapytaniami
 6. **Rate limiting** – ochrona przed nadmiernym ruchem (gotowe do wdrożenia)
 7. **CORS policy** – ograniczenie dozwolonych origin'ów
-8. **XSS protection** – sanitizacja wszystkich danych wejściowych
+8. **XSS protection** – sanityzacja wszystkich danych wejściowych
 
-### 8.2 Przykład Walidacji
+### 8.2 Walidacja
 
-```typescript
-// Walidacja rejestracji
-const registerSchema = z.object({
-  email: z.string().email("Nieprawidłowy format email"),
-  password: z.string()
-    .min(6, "Hasło musi mieć minimum 6 znaków")
-    .max(100),
-  nickname: z.string()
-    .min(3, "Nickname musi mieć minimum 3 znaki")
-    .max(20)
-});
-```
+Wszystkie endpointy API używają schematów Zod do walidacji:
+- Rejestracja: email, hasło (min. 6 znaków), nickname (3-20 znaków)
+- Zakłady: weryfikacja ID meczu/ligi, kwoty (10-500 dla meczów, 50-1000 dla lig)
+- Sklep: weryfikacja ID przedmiotu, dostępności coinów
 
 ## 9. Komponenty Aplikacji
 
-### 9.1 Network Manager (`lib/sofascore-proxy.ts`)
+### 9.1 Network Manager
 
 Odpowiada za:
 - Komunikację z SofaScore API poprzez warstwę proxy
@@ -455,7 +340,7 @@ Odpowiada za:
 - Logowanie szczegółowych informacji debugowych
 - Omijanie ochrony anti-bot z wykorzystaniem randomizowanych User-Agent
 
-### 9.2 Match Manager (`app/api/fixtures/route.ts`)
+### 9.2 Match Manager
 
 Zarządza:
 - Pobieraniem listy meczów z SofaScore
@@ -463,34 +348,38 @@ Zarządza:
 - Sortowaniem wyników
 - Cache'owaniem danych w PostgreSQL dla optymalizacji
 
-### 9.3 Bet Manager (`app/api/predictions/route.ts`)
+### 9.3 Bet Manager
 
 Obsługuje:
 - Tworzenie nowych zakładów
 - Walidację dostępności coinów
 - Zapis do bazy danych
-- Rozliczanie zakładów (endpoint `/api/predictions/settle`)
+- Rozliczanie zakładów
 
-### 9.4 User Manager (`lib/auth.ts`)
+### 9.4 User Manager
 
 Przechowuje:
 - Logikę rejestracji i logowania
 - Generowanie i weryfikację JWT
-- Pobieranie danych zalogowanego użytkownika (`getCurrentUser()`)
+- Pobieranie danych zalogowanego użytkownika
 - Aktualizację profilu i statystyk
 
-### 9.5 Cache Manager (`lib/cache.ts`)
+### 9.5 Cache Manager
 
 System cachowania z trzema poziomami czasu życia:
-```typescript
-DURATIONS = {
-  SHORT: 2 * 60 * 1000,      // 2 minuty (mecze live)
-  LONG: 60 * 60 * 1000,      // 1 godzina (tabele)
-  VERY_LONG: 24 * 60 * 60 * 1000  // 24 godziny (statystyki)
-}
-```
+- SHORT (2 minuty) – mecze live
+- MEDIUM (10 minut) – nadchodzące mecze
+- LONG (30 minut) – dane statyczne (ligi, drużyny)
 
-## 10. Zasady Projektowe
+## 10. Zarządzanie Stanem i Cache
+
+System cachowania aplikacji działa na trzech poziomach:
+- SHORT (2 minuty) – mecze live
+- MEDIUM (10 minut) – nadchodzące mecze
+- LONG (30 minut) – dane statyczne (ligi, drużyny)
+- VERY_LONG (24 godziny) – statystyki
+
+## 11. Zasady Projektowe
 
 1. **Brak mikropłatności** – coinów nie można kupić za realne pieniądze
 2. **Charakter edukacyjno-rozrywkowy** – aplikacja nie promuje hazardu
@@ -500,7 +389,7 @@ DURATIONS = {
 6. **Minimalistyczny design** – inspiracja aplikacjami bukmacherskimi bez agresywnych elementów
 7. **Open data** – rankingi i profile publiczne dostępne bez logowania
 
-## 11. Struktura API Endpoints
+## 12. Struktura API Endpoints
 
 ### Autentykacja
 - `POST /api/auth/register` – rejestracja nowego użytkownika
@@ -522,8 +411,6 @@ DURATIONS = {
 ### Zakłady
 - `GET /api/predictions` – zakłady użytkownika (meczowe i ligowe)
 - `POST /api/predictions` – nowy zakład (match lub league type)
-  - Dla zakładu meczowego: `{ predictionType: "match", fixtureApiId, predictedHomeScore, predictedAwayScore, coinsWagered }`
-  - Dla zakładu ligowego: `{ predictionType: "league", leagueId, leagueName, predictedWinnerId, predictedWinnerName, predictedWinnerLogo, coinsWagered }`
 - `POST /api/predictions/settle` – rozliczenie zakładów (automatyczne)
 
 ### Sklep
@@ -539,41 +426,16 @@ DURATIONS = {
 
 ## 12. Podział Prac i Role
 
-### Backend Developer
-- Implementacja logiki zakładów i rozliczania
-- Integracja z SofaScore API
-- Konfiguracja bazy danych PostgreSQL
-- System autoryzacji JWT
-- Implementacja walidacji i bezpieczeństwa
-- Optymalizacja cache i wydajności
+Projekt realizowany jest w modelu full-stack z podziałem na:
 
-### Frontend Developer
-- Implementacja komponentów UI w React/Next.js
-- Zarządzanie stanem aplikacji
-- Integracja z API backend
+**Backend Developer** – API, baza danych, autoryzacja, integracja z SofaScore  
+**Frontend Developer** – komponenty UI, zarządzanie stanem, responsywny design  
+**UI/UX Designer** – interfejs użytkownika, system designu, grafiki  
+**DevOps Engineer** – wdrożenie, monitoring, optymalizacja
+
+## 13. Roadmap Rozwoju
 - Responsywny design i animacje
 - Optymalizacja UX
-
-### UI/UX Designer
-- Projekt interfejsu użytkownika
-- Opracowanie systemu designu
-- Tworzenie ikon, awatarów i grafik
-- Prototypowanie przepływów użytkownika
-- Zapewnienie spójności wizualnej
-
-### QA Tester
-- Weryfikacja poprawności synchronizacji danych
-- Testowanie mechanizmu zakładów i rozliczania
-- Testy bezpieczeństwa (auth, SQL injection, XSS)
-- Testy wydajnościowe i obciążeniowe
-- Testowanie responsywności na różnych urządzeniach
-
-### DevOps Engineer
-- Konfiguracja środowiska produkcyjnego
-- CI/CD pipeline
-- Monitoring i logging
-- Backup bazy danych
-- Optymalizacja wydajności serwera
 
 ## 13. Roadmap Rozwoju
 
@@ -586,7 +448,7 @@ DURATIONS = {
 
 ### Faza 2: Rozbudowa (W trakcie)
 - System odznak i osiągnięć
-- Turniejów tygodniowe
+- Turnieje tygodniowe
 - Statystyki zaawansowane
 - Powiadomienia push
 
@@ -604,6 +466,14 @@ DURATIONS = {
 
 ## 14. Wdrożenie i Hosting
 
+### Faza 4: Gamifikacja (Planowane)
+- System questów dziennych
+- Sezonowe eventy
+- Limitowane odznaki
+- Tryb treningowy z AI
+
+## 14. Wdrożenie i Hosting
+
 ### Platforma Produkcyjna
 - **Neon DB** – serverless baza danych PostgreSQL w chmurze
   - Automatyczne backupy
@@ -611,20 +481,13 @@ DURATIONS = {
   - Bezpieczne połączenie SSL
   - Region: AWS (configurable)
 
-### Komendy Deployment
-```bash
-# Build produkcyjny
-npm run build
+### Deployment
+Aplikacja wykorzystuje Next.js i może być wdrożona na platformach takich jak Vercel, Railway, lub dowolnym serwerze VPS z obsługą Node.js.
 
-# Migracje bazy danych
-npm run db:push
-
-# Generowanie migracji
-npm run db:generate
-
-# Start produkcyjny
-npm start
-```
+Podstawowe operacje:
+- Build produkcyjny
+- Migracje bazy danych (push/generate)
+- Start produkcyjny
 
 ## 15. Podsumowanie
 

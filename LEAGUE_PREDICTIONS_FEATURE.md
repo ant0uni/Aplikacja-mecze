@@ -1,98 +1,202 @@
-# League Predictions Feature - Implementation Summary
+# League Predictions Feature - Complete Implementation
 
 ## Overview
-Added support for league-wide predictions in addition to single match predictions. Users can now predict which team will win a league and wager coins on their prediction.
+Successfully added comprehensive league prediction functionality, allowing users to predict league winners and wager coins on long-term outcomes. This feature complements the existing match prediction system.
 
-## Changes Made
+## Implementation Summary
 
-### 1. Database Schema Updates
+### 1. Database Schema Updates ✅
 **File:** `db/schema.ts`
-- Added `predictionType` field to distinguish between "match" and "league" predictions
-- Added league prediction fields:
-  - `leagueId`: The league tournament ID
-  - `leagueName`: Name of the league
-  - `predictedWinnerId`: The team ID predicted to win
-  - `predictedWinnerName`: Name of the predicted winner team
-  - `predictedWinnerLogo`: Logo URL for the predicted winner
-- Made match-specific fields nullable (since league predictions don't need them)
+
+**Changes:**
+- Added `predictionType` field: `VARCHAR(20) DEFAULT 'match'`
+  - Values: `"match"` or `"league"`
+- Added league-specific fields:
+  - `leagueId`: Tournament ID from SofaScore
+  - `leagueName`: Full league name
+  - `predictedWinnerId`: Team ID of predicted winner
+  - `predictedWinnerName`: Team name
+  - `predictedWinnerLogo`: Team logo URL
+- Made match-specific fields nullable (since league predictions don't need fixture data)
 
 **Migration:** `db/migrations/0005_add_league_predictions.sql`
-- SQL migration to add new columns and make existing columns nullable
+- SQL migration successfully applied
+- Backward compatible with existing match predictions
 
-### 2. API Updates
+### 2. API Updates ✅
 **File:** `app/api/predictions/route.ts`
-- Updated POST endpoint to handle both match and league predictions
-- Added validation for league predictions (leagueId, predictedWinnerId required)
-- Checks for duplicate league predictions per user
-- Updated GET endpoint to return all prediction fields including league data
 
-### 3. Profile Page Improvements
+**POST Endpoint:**
+- Handles both `predictionType: "match"` and `predictionType: "league"`
+- Validates required fields based on prediction type:
+  - Match: requires `fixtureApiId`, `predictedHomeScore`, `predictedAwayScore`
+  - League: requires `leagueId`, `predictedWinnerId`, `leagueName`, `predictedWinnerName`
+- Prevents duplicate league predictions:
+  - Checks if user already has a prediction for the same league
+  - Returns 400 error if duplicate found
+- Automatically fetches and caches match data from SofaScore if fixture doesn't exist
+
+**GET Endpoint:**
+- Returns all user predictions (both match and league types)
+- Includes all fields for both prediction types
+- Sorted by creation date (newest first)
+
+### 3. Profile Page Enhancements ✅
 **File:** `app/profile/page.tsx`
-- Updated `Prediction` interface to include league prediction fields
-- Enhanced prediction display to show both match and league predictions
-- Fixed team logo/name display issues:
-  - Always shows team name even if logo fails to load
-  - Uses first letter of team name as fallback icon
-  - Better error handling for missing team data
-- Separate rendering for league predictions with trophy icon
-- Shows predicted winner with team logo and name
 
-### 4. New Component: League Prediction Dialog
+**Features:**
+- Updated `Prediction` interface with all league fields
+- Dual rendering system:
+  - **Match predictions**: Show team logos, names, predicted score vs actual score
+  - **League predictions**: Show trophy icon, league name, predicted winner with logo
+- Always displays team names even if logos fail to load
+- Uses first letter of team name as fallback icon
+- Visual distinction between prediction types
+- Manual result checking for match predictions
+- Shows verdict badges (pending/won/lost)
+- Displays coin wager and potential winnings
+
+### 4. League Prediction Dialog Component ✅
 **File:** `components/league-prediction-dialog.tsx`
-- New dialog component for making league winner predictions
-- Features:
-  - Searchable team list
-  - Team logos with fallbacks
-  - Coin wager input with validation
-  - Visual feedback for selected team
-  - Responsive design with scrollable team list
 
-### 5. League Page Integration
+**Features:**
+- Modal dialog for league winner predictions
+- Searchable team list with real-time filtering
+- Team display with:
+  - Team logos with error handling
+  - Team names always visible
+  - Position in current standings
+  - Visual selection feedback
+- Coin wager input:
+  - Validation (minimum 10 coins)
+  - Shows potential 5x winnings
+  - Checks user's available balance
+- Responsive design with scrollable team list
+- Error handling and toast notifications
+- Auto-closes on successful prediction
+
+**Integration:**
+- Imported into league pages
+- Triggered by "Predict Winner" button
+- Receives league info and team standings as props
+- Calls `/api/predictions` POST endpoint
+
+### 5. League Page Integration ✅
 **File:** `app/auth/league/[id]/page.tsx`
+
+**Features:**
 - Added "Predict Winner" button with gradient styling
+- Button positioned prominently in league header
 - Integrated LeaguePredictionDialog component
-- Passes league info and team standings to the dialog
-- Auto-refreshes after successful prediction
+- Passes required props:
+  - League ID and name
+  - Current standings data
+  - User information
+- Auto-refreshes page after successful prediction
+- Shows user's existing league prediction if already made
+- Disables button if user already predicted
 
 ## User Features
 
-### League Predictions
-- Users can predict the winner of any league
-- Only one prediction allowed per league
-- Coins are wagered on the prediction
-- Shows pending status until league ends
+### Making League Predictions
+1. Navigate to any league standings page
+2. Click "Predict Winner" button
+3. Search or scroll to find your predicted team
+4. Select the team (highlights with blue border)
+5. Enter coin wager amount (minimum 10 coins)
+6. See potential 5x winnings calculation
+7. Click "Place Prediction" button
+8. Receive confirmation toast notification
 
-### Profile View
-- All predictions (match and league) shown in chronological order
-- League predictions displayed with:
-  - Trophy icon indicator
-  - League name
-  - Predicted winner team with logo
-  - Wager amount
-  - Status (pending/won/lost)
-- Match predictions show:
-  - Team logos and names (always visible)
-  - Predicted score
-  - Actual result when available
-  - Match date and status
+### Prediction Rules
+- **One prediction per league** - Can't change once placed
+- **Minimum wager** - 10 coins required
+- **Settlement** - Resolved at end of season
+- **Rewards** - 5x multiplier for correct prediction (vs 2x for matches)
+- **Display** - Shows in profile under "Recent Predictions"
 
-### Fixed Issues
-✅ Team pictures and names now always display in predictions
-✅ Proper fallback icons when logos fail to load
-✅ Better data structure to support multiple prediction types
-✅ Clear visual distinction between match and league predictions
+### Profile Display
+**League Predictions Show:**
+- 🏆 Trophy icon (distinguishes from match predictions)
+- League name (e.g., "Premier League")
+- Predicted winner team with logo
+- Coin wager amount
+- Status: Pending/Won/Lost
+- Created date
 
-## Next Steps (Optional)
-- Implement settlement logic for league predictions when season ends
-- Add league prediction statistics to user profile
-- Show other users' league predictions (leaderboard)
-- Add notifications when league predictions are settled
-- Display league prediction odds/multipliers
+**Match Predictions Show:**
+- ⚽ Football icon
+- Team logos and names (both teams)
+- Predicted score (e.g., "2 - 1")
+- Actual result when available
+- Verdict badge (correct/incorrect)
+- Manual check button
+- Created date
 
-## Database Migration Required
-Run the migration to apply schema changes:
-```bash
-npm run db:migrate
-# or apply manually:
-# db/migrations/0005_add_league_predictions.sql
+## Technical Implementation Details
+
+### Database Query Pattern
+```typescript
+// Check for existing league prediction
+const existing = await db
+  .select()
+  .from(predictions)
+  .where(
+    and(
+      eq(predictions.userId, userId),
+      eq(predictions.leagueId, leagueId),
+      eq(predictions.predictionType, "league")
+    )
+  )
+  .limit(1);
+
+if (existing.length > 0) {
+  return NextResponse.json(
+    { error: "You already have a prediction for this league" },
+    { status: 400 }
+  );
+}
 ```
+
+### Prediction Type Validation
+```typescript
+if (predictionType === "league") {
+  if (!leagueId || !predictedWinnerId) {
+    return NextResponse.json(
+      { error: "League predictions require leagueId and predictedWinnerId" },
+      { status: 400 }
+    );
+  }
+} else {
+  if (!fixtureApiId || predictedHomeScore === undefined) {
+    return NextResponse.json(
+      { error: "Match predictions require fixture and scores" },
+      { status: 400 }
+    );
+  }
+}
+```
+
+## Future Enhancements (Potential)
+
+- [ ] Automatic settlement when league season ends
+- [ ] League prediction statistics (most predicted team, etc.)
+- [ ] Public league prediction leaderboards
+- [ ] Notifications when league predictions are settled
+- [ ] Display odds/multipliers based on team position
+- [ ] Allow prediction changes before season starts (with fee)
+- [ ] Mid-season league prediction updates
+- [ ] Integration with league winners from previous seasons
+
+## Migration Instructions
+
+If setting up on a new database:
+```bash
+# Apply all migrations
+npm run db:push
+
+# Or run migration manually
+psql $DATABASE_URL -f db/migrations/0005_add_league_predictions.sql
+```
+
+The migration adds new columns and is backward compatible with existing data.

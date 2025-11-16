@@ -1,21 +1,32 @@
 # Implemented SofaScore API Features
 
 ## Overview
-This document lists all the working SofaScore API endpoints that have been integrated into the football prediction app.
+This document lists all the working SofaScore API endpoints that have been integrated into the CoinKick football prediction app. The app fetches data directly from SofaScore API on the client-side.
 
 ## Implemented Endpoints
 
-### 1. **Fixtures & Match Data**
+### 1. **Scheduled Fixtures & Match Data**
 - **Endpoint**: `GET https://www.sofascore.com/api/v1/sport/football/scheduled-events/{date}`
 - **Features**:
   - Fetches all football matches for a specific date
   - Shows match status, teams, scores, and time
   - Displays team logos from SofaScore API
-  - Sortable by date with predictable matches displayed first
-  - Visual indicators for matches available for prediction (green "⚡ Can Predict" badge)
+  - Advanced filtering by country, league, and team
+  - Sortable by date, league name, and country
+  - Visual indicators for matches available for prediction ("⚡ Can Predict" badge)
+  - Country badges on each match card
 - **Used In**: Dashboard (`/auth/dashboard`)
 
-### 2. **Match Details**
+### 2. **Live Matches**
+- **Endpoint**: `GET https://www.sofascore.com/api/v1/sport/football/events/live`
+- **Features**:
+  - Real-time live match data
+  - Displayed in a carousel component
+  - Exit-intent popup showing live matches when user attempts to leave
+  - Shows current scores, league info, and team logos
+- **Used In**: Dashboard live matches carousel, Exit Intent Popup
+
+### 3. **Match Details**
 - **Endpoint**: `GET https://www.sofascore.com/api/v1/event/{eventId}`
 - **Features**:
   - Detailed match information
@@ -23,9 +34,9 @@ This document lists all the working SofaScore API endpoints that have been integ
   - Score display
   - Venue information
   - Match start time
-- **Used In**: Match Details Page (`/match/[id]`)
+- **Used In**: Match Details Page (`/match/[id]`), Prediction verification
 
-### 3. **Head-to-Head (H2H) Statistics**
+### 4. **Head-to-Head (H2H) Statistics**
 - **Endpoint**: `GET https://www.sofascore.com/api/v1/event/{eventId}/h2h`
 - **Features**:
   - Historical performance between two teams
@@ -33,7 +44,7 @@ This document lists all the working SofaScore API endpoints that have been integ
   - Visual charts showing historical results
 - **Used In**: Match Details Page (`/match/[id]`)
 
-### 4. **League Standings**
+### 5. **League Standings**
 - **Endpoint**: `GET https://api.sofascore.com/api/v1/unique-tournament/{tournamentId}/season/{seasonId}/standings/total`
 - **Features**:
   - Complete league table with all teams
@@ -47,7 +58,7 @@ This document lists all the working SofaScore API endpoints that have been integ
   - Team logos with fallback handling
 - **Used In**: League Standings Page (`/league/[id]`)
 
-### 5. **Current Season Info**
+### 6. **Current Season Info**
 - **Endpoint**: `GET https://api.sofascore.com/api/v1/unique-tournament/{tournamentId}/seasons`
 - **Features**:
   - Gets list of all seasons for a tournament
@@ -55,7 +66,7 @@ This document lists all the working SofaScore API endpoints that have been integ
   - Used to dynamically fetch current season standings
 - **Used In**: League Standings & Top Scorers Pages
 
-### 6. **Top Scorers & Player Statistics**
+### 7. **Top Scorers & Player Statistics**
 - **Endpoint**: `GET https://api.sofascore.com/api/v1/unique-tournament/{tournamentId}/season/{seasonId}/top-players/overall`
 - **Features**:
   - Top 20 goal scorers in the league
@@ -69,7 +80,7 @@ This document lists all the working SofaScore API endpoints that have been integ
   - Player positions
 - **Used In**: Top Scorers Page (`/league/[id]/top-scorers`)
 
-### 7. **Team Logos**
+### 8. **Team Logos**
 - **Endpoint**: `GET https://api.sofascore.com/api/v1/team/{teamId}/image`
 - **Features**:
   - High-quality team logos/badges
@@ -77,7 +88,7 @@ This document lists all the working SofaScore API endpoints that have been integ
   - Used throughout the app for visual enhancement
 - **Used In**: Dashboard, Match Details, Standings, Top Scorers
 
-### 8. **Tournament/League Logos**
+### 9. **Tournament/League Logos**
 - **Endpoint**: `GET https://api.sofascore.com/api/v1/unique-tournament/{tournamentId}/image`
 - **Features**:
   - League/tournament logos
@@ -90,6 +101,28 @@ This document lists all the working SofaScore API endpoints that have been integ
 - Reusable table component for displaying data
 - Includes: Table, TableHeader, TableBody, TableRow, TableHead, TableCell
 - Used for standings and top scorers displays
+
+### Prediction Dialog (`components/prediction-dialog.tsx`)
+- Modal for making match predictions
+- Score input with validation
+- Coin wager selection
+- Real-time feedback
+
+### League Prediction Dialog (`components/league-prediction-dialog.tsx`)
+- Modal for predicting league winners
+- Searchable team list with logos
+- Coin wager input
+- One prediction per league limit
+
+### Live Matches Carousel (`components/live-matches-carousel.tsx`)
+- Horizontal scrollable carousel of live matches
+- Auto-refresh functionality
+- Direct links to match details
+
+### Exit Intent Popup (`components/exit-intent-popup.tsx`)
+- Detects when user is about to leave the page
+- Shows current live matches to encourage engagement
+- Only shows once per session
 
 ## Image Handling Strategy
 
@@ -179,8 +212,9 @@ Two-level sorting implemented on dashboard:
 
 ## Summary
 
-Successfully implemented 8 different SofaScore API endpoints with full error handling, responsive UI, and seamless navigation. The app now provides:
-- ✅ Live match fixtures with sorting
+Successfully implemented 9 different SofaScore API endpoints with full error handling, responsive UI, and seamless navigation. The app now provides:
+- ✅ Scheduled match fixtures with advanced filtering
+- ✅ Live matches with real-time updates
 - ✅ Detailed match information
 - ✅ Historical H2H data
 - ✅ League standings with color-coded zones
@@ -188,5 +222,10 @@ Successfully implemented 8 different SofaScore API endpoints with full error han
 - ✅ Team and league logos throughout
 - ✅ Dynamic season detection
 - ✅ Comprehensive navigation between features
+- ✅ Country and league filtering
+- ✅ Team search functionality
+- ✅ Live match carousel
+- ✅ Exit-intent engagement popup
+- ✅ Match and league prediction dialogs
 
 All features are fully functional and ready for use!

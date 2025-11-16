@@ -1,28 +1,434 @@
-# SportMonks API Fixes - Complete Documentation
+# API Implementation Documentation
 
-## ⚡ Quick Summary (FREE PLAN)
+## ⚡ Current Implementation (Client-Side SofaScore API)
 
-**All API issues have been fixed for FREE plan compatibility:**
+**The app uses SofaScore API exclusively for all football data.** No API keys required.
 
-1. **Fixtures**: Now uses `/livescores` endpoint (no includes needed)
-2. **Teams**: Uses correct filter syntax
-3. **Leagues**: Simplified for free plan
-4. **All routes**: Proper error handling and logging
+### Why SofaScore?
+- ✅ Free to use, no API key required
+- ✅ Comprehensive data coverage
+- ✅ Real-time updates
+- ✅ Client-side fetching (no CORS issues)
+- ✅ Rich data including standings, statistics, and live scores
 
-**Key Changes:**
-- ✅ Switched from `/fixtures/between` to `/livescores` (free plan compatible)
-- ✅ Removed invalid includes that caused 404 errors
-- ✅ Base livescores data contains participants and scores
-- ✅ Client-side filtering for dates and leagues
-- ✅ Proper error messages
+**Key Implementation:**
+- All football data fetched directly from SofaScore API
+- Client-side requests from the browser
+- No backend proxy needed for match data
+- Simplified architecture with direct API access
 
 ---
 
-## 🔴 Problems Identified
+## 🌐 SofaScore API Endpoints Used
 
-Based on the [SportMonks Football API v3 Documentation](https://docs.sportmonks.com/football/), the following issues were found in the application:
+### Live & Scheduled Matches
+```
+GET https://www.sofascore.com/api/v1/sport/football/scheduled-events/{YYYY-MM-DD}
+GET https://www.sofascore.com/api/v1/sport/football/events/live
+```
 
-### 1. **Fixtures Route Issues**
+### Match Details
+```
+GET https://www.sofascore.com/api/v1/event/{eventId}
+GET https://www.sofascore.com/api/v1/event/{eventId}/h2h
+```
+
+### League Data
+```
+GET https://api.sofascore.com/api/v1/unique-tournament/{tournamentId}/seasons
+GET https://api.sofascore.com/api/v1/unique-tournament/{tournamentId}/season/{seasonId}/standings/total
+GET https://api.sofascore.com/api/v1/unique-tournament/{tournamentId}/season/{seasonId}/top-players/overall
+```
+
+### Images
+```
+GET https://api.sofascore.com/api/v1/team/{teamId}/image
+GET https://api.sofascore.com/api/v1/unique-tournament/{tournamentId}/image
+GET https://api.sofascore.com/api/v1/player/{playerId}/image
+```
+
+---
+
+## 🔧 Implementation Details
+
+### Client-Side Fetching
+All SofaScore API calls are made directly from the browser:
+- No API keys required
+- No CORS issues
+- Direct access to real-time data
+- Simplified architecture
+
+### Data Transformation
+The dashboard transforms SofaScore data into the app's format:
+```typescript
+const fixture = {
+  id: event.id,
+  home_team_name: event.homeTeam?.name,
+  away_team_name: event.awayTeam?.name,
+  home_score: event.homeScore?.current,
+  away_score: event.awayScore?.current,
+  league_name: event.tournament?.uniqueTournament?.name,
+  country: event.tournament?.category?.name,
+  status: event.status?.code,
+  // ... additional fields
+};
+```
+
+### Filtering & Sorting
+Client-side filtering implemented for:
+- Date range selection
+- Country filter (multi-select)
+- League filter (multi-select)
+- Team search (text input)
+- Predictable matches only toggle
+- Sorting by time, league, or country
+
+---
+
+## 🗄️ Database Schema
+
+### Users Table
+```sql
+CREATE TABLE users (
+  id SERIAL PRIMARY KEY,
+  email VARCHAR(255) UNIQUE NOT NULL,
+  nickname VARCHAR(50) UNIQUE NOT NULL,
+  password TEXT NOT NULL,
+  coins INTEGER DEFAULT 100,
+  badges TEXT[] DEFAULT '{}',
+  
+  -- Shop items
+  avatar VARCHAR(100) DEFAULT 'default',
+  profile_background VARCHAR(100) DEFAULT 'default',
+  avatar_frame VARCHAR(100) DEFAULT 'none',
+  victory_effect VARCHAR(100) DEFAULT 'none',
+  profile_title VARCHAR(100),
+  owned_items TEXT[] DEFAULT '{}',
+  
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW()
+);
+```
+
+### Fixtures Table (Cached Data)
+```sql
+CREATE TABLE fixtures (
+  id SERIAL PRIMARY KEY,
+  api_id INTEGER UNIQUE NOT NULL,
+  league_id INTEGER,
+  league_name TEXT,
+  home_team_id INTEGER,
+  home_team_name TEXT,
+  home_team_logo TEXT,
+  away_team_id INTEGER,
+  away_team_name TEXT,
+  away_team_logo TEXT,
+  starting_at TIMESTAMP NOT NULL,
+  state_name TEXT,
+  home_score INTEGER,
+  away_score INTEGER,
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW()
+);
+```
+
+### Predictions Table
+```sql
+CREATE TABLE predictions (
+  id SERIAL PRIMARY KEY,
+  user_id INTEGER NOT NULL REFERENCES users(id),
+  prediction_type VARCHAR(20) DEFAULT 'match',
+  
+  -- Match predictions
+  fixture_id INTEGER REFERENCES fixtures(id),
+  fixture_api_id INTEGER,
+  predicted_home_score INTEGER,
+  predicted_away_score INTEGER,
+  
+  -- League predictions
+  league_id INTEGER,
+  league_name TEXT,
+  predicted_winner_id INTEGER,
+  predicted_winner_name TEXT,
+  predicted_winner_logo TEXT,
+  
+  -- Common fields
+  coins_wagered INTEGER NOT NULL,
+  coins_won INTEGER DEFAULT 0,
+  verdict VARCHAR(20) DEFAULT 'pending',
+  is_settled BOOLEAN DEFAULT false,
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW()
+);
+```
+
+---
+
+## 📊 Features Implemented
+
+### Match Predictions
+- Users predict exact scores for upcoming matches
+- Wager coins on predictions
+- Automatic result checking via SofaScore API
+- Manual check button for pending predictions
+- Win/loss determination based on exact score match
+- 2x multiplier for correct predictions
+
+### League Predictions
+- Predict which team will win a league
+- One prediction per league per user
+- Long-term predictions settled at season end
+- Higher rewards for correct league winners (5x multiplier)
+
+### Prediction Settlement
+The app provides two ways to check prediction results:
+
+1. **Manual Check** (Profile page)
+   - "Check Result Manually" button
+   - Fetches live data from SofaScore
+   - Compares with prediction
+   - Shows result immediately
+
+2. **Automatic Settlement** (Backend route)
+   - POST `/api/predictions/settle`
+   - Checks all pending predictions
+   - Updates verdict and coins_won
+   - Settles predictions automatically
+
+---
+
+## 🎨 User Interface Features
+
+### Dashboard
+- Date picker for match selection
+- Advanced filtering panel (collapsible)
+- Country and league multi-select dropdowns
+- Team search with real-time filtering
+- "Show only predictable matches" toggle
+- Active filter count badge
+- Live matches carousel
+- Exit-intent popup with live matches
+
+### Match Cards
+- Team logos with fallback
+- League and country badges
+- Venue information
+- Conditional feature badges (Standings, Top Scorers)
+- "Make Prediction" button for upcoming matches
+- "View Details" button
+
+### Profile Page
+- User statistics (coins, predictions, win rate)
+- Badge collection display
+- Equipped shop items visualization
+- Recent predictions list with:
+  - Match/League type indicator
+  - Predicted vs actual scores
+  - Result badges (correct/incorrect)
+  - Manual check button for pending predictions
+  - Match data display after checking
+
+### Shop System
+- 5 categories: Avatars, Backgrounds, Frames, Effects, Titles
+- Purchase items with coins
+- Equip/unequip functionality
+- Visual preview of equipped items
+- Owned items tracking in database
+- Polish language support
+
+### Badge System
+- Automatic badge earning based on achievements:
+  - **Always The Winner** (🏆): 10 wins in a row
+  - **Veteran Predictor** (🎖️): 100+ predictions
+  - **Sharpshooter** (🎯): 75%+ win rate with 20+ predictions
+  - **Coin Millionaire** (💰): 10,000+ coins earned
+  - **Lucky Streak** (🍀): 5 wins in a row
+  - **Badge Collector** (📛): Own 5+ badges
+- Visual badge display on profile
+
+---
+
+## 🔐 Authentication & Security
+
+### JWT-Based Auth
+- HttpOnly cookies for session tokens
+- 7-day token expiration
+- Secure password hashing with bcryptjs (12 rounds)
+- Protected API routes with middleware
+
+### Middleware Protection
+Routes requiring authentication:
+```typescript
+// Protected patterns
+/auth/*          // Dashboard and authenticated pages
+/api/user/*      // User data endpoints
+/api/predictions/* // Prediction endpoints
+/api/shop/*      // Shop endpoints
+```
+
+Public routes:
+```typescript
+/login
+/register
+/api/auth/login
+/api/auth/register
+```
+
+---
+
+## 🚀 Deployment Configuration
+
+### Environment Variables Required
+```env
+# Database
+DATABASE_URL=postgresql://user:pass@host/db?sslmode=require
+
+# Authentication
+JWT_SECRET=your_secure_32_char_minimum_secret
+
+# App URL
+NEXT_PUBLIC_APP_URL=http://localhost:3000
+```
+
+**Note:** No API keys needed for SofaScore (client-side fetching)
+
+### Database Setup
+```bash
+# Push schema to database
+npm run db:push
+
+# Open Drizzle Studio (database GUI)
+npm run db:studio
+
+# Run migrations manually
+npm run db:migrate
+```
+
+### Build & Deploy
+```bash
+# Development
+npm run dev
+
+# Production build
+npm run build
+
+# Start production server
+npm run start
+```
+
+---
+
+## 🎯 Best Practices
+
+### Error Handling
+```typescript
+try {
+  const response = await fetch(sofascoreUrl);
+  if (!response.ok) {
+    throw new Error(`SofaScore API error: ${response.status}`);
+  }
+  const data = await response.json();
+  // Process data...
+} catch (error) {
+  console.error("Failed to fetch:", error);
+  toast.error("Failed to load matches. Please try again.");
+}
+```
+
+### Image Fallbacks
+```tsx
+<img
+  src={teamLogo}
+  alt={teamName}
+  className="w-8 h-8"
+  onError={(e) => {
+    const target = e.target as HTMLImageElement;
+    target.style.display = 'none';
+  }}
+/>
+```
+
+### Caching Strategy
+- SofaScore data fetched fresh on each request
+- Fixture data cached in database when predictions are made
+- User data and predictions stored in PostgreSQL
+- No Redis or external caching needed for MVP
+
+### Performance Optimizations
+- Debounced search inputs
+- Lazy loading for images
+- Pagination for large datasets
+- Client-side filtering reduces server load
+- Conditional rendering based on data availability
+
+---
+
+## 📝 API Route Summary
+
+### Authentication Routes
+- `POST /api/auth/register` - Create new account
+- `POST /api/auth/login` - Login user
+- `POST /api/auth/logout` - Logout user
+
+### User Routes
+- `GET /api/user/me` - Get current user data
+- `GET /api/user/badges` - Get user badges
+- `GET /api/user/coins` - Get coin balance
+- `GET /api/users/[id]` - Get public user profile
+- `GET /api/users/ranking` - Get global ranking
+
+### Prediction Routes
+- `GET /api/predictions` - Get user's predictions
+- `POST /api/predictions` - Create new prediction
+- `POST /api/predictions/settle` - Settle pending predictions
+
+### Shop Routes
+- `GET /api/shop` - Get available shop items
+- `POST /api/shop` - Purchase item
+- `POST /api/shop/equip` - Equip/unequip item
+
+### Data Routes (Informational)
+- `GET /api/fixtures` - Returns SofaScore endpoint info
+- `GET /api/fixtures/[id]` - Returns endpoint for specific match
+- `GET /api/leagues` - Returns endpoint for leagues
+- `GET /api/teams` - Returns endpoint for teams
+
+**Note:** Most data routes now return endpoint information only, as actual data is fetched client-side from SofaScore.
+
+---
+
+## 🔄 Future Enhancements
+
+Potential additions:
+- [ ] WebSocket for real-time score updates
+- [ ] Push notifications for match results
+- [ ] Social features (follow users, share predictions)
+- [ ] Advanced statistics and analytics
+- [ ] Mobile app (React Native)
+- [ ] Prediction tournaments and events
+- [ ] AI-powered prediction suggestions
+- [ ] Multiple language support
+- [ ] Dark/light theme toggle (currently fixed theme)
+
+---
+
+## 📚 Additional Resources
+
+- **SofaScore API**: https://www.sofascore.com
+- **Next.js Documentation**: https://nextjs.org/docs
+- **Drizzle ORM**: https://orm.drizzle.team
+- **Shadcn UI**: https://ui.shadcn.com
+- **Tailwind CSS**: https://tailwindcss.com
+
+## ❌ Legacy Information (Outdated)
+
+The following sections contain outdated information about SportMonks API.  
+**The app no longer uses SportMonks** - all data now comes from SofaScore.
+
+<details>
+<summary>Click to view legacy SportMonks documentation (for reference only)</summary>
+
+### 1. **Fixtures Route Issues (DEPRECATED)**
 
 #### Problem:
 - ❌ Using `/fixtures` endpoint without proper date filtering
